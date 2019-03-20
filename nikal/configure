@@ -113,9 +113,13 @@ reply=
 
 MUNMAP_VARIANT=""
 munmap_fourth=$(grep do_munmap $headersDir/include/linux/mm.h | grep -wc "int acct")
+munmap_lhead=$(grep -A 2 do_munmap $headersDir/include/linux/mm.h | grep -wc "list_head \*uf")
 if [ $munmap_fourth -eq 1 ]; then
    reply="4"
    MUNMAP_VARIANT="-DnNIKAL100_kFourParameterDoMunmap"
+elif [ $munmap_lhead -eq 1 ]; then
+   reply="5"
+   MUNMAP_VARIANT="-DnNIKAL100_kFiveParameterDoMunmap"
 else
    reply="3"
 fi
@@ -212,7 +216,12 @@ reply=
 PAGE_TABLE_LEVEL_VARIANT=""
 if [ -e $headersDir/include/asm-generic ]; then
    pud_offset_exists=$(grep pud_offset $headersDir/include/asm-generic/* 2>/dev/null | grep -wc pud_offset)
-   if [ $pud_offset_exists -ne 0 ]; then
+   # @ckutlu
+   p4d_offset_exists=$(grep p4d_offset $headersDir/include/asm-generic/* 2>/dev/null | grep -wc p4d_offset)
+   if [ $p4d_offset_exists -ne 0 ]; then
+      reply="5"
+      PAGE_TABLE_LEVEL_VARIANT="-DnNIKAL100_kFiveLevelPageTable"
+   elif [ $pud_offset_exists -ne 0 ]; then
       reply="4"
       PAGE_TABLE_LEVEL_VARIANT="-DnNIKAL100_kFourLevelPageTable"
    else

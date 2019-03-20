@@ -68,6 +68,9 @@
 #include <linux/interrupt.h>
 #include <linux/wait.h>
 #include <linux/timer.h>
+//@ckutlu: Kernel 4.15 doesn't define init_timer
+#define init_timer(timer)\
+	init_timer_key((timer), NULL, 0, NULL, NULL)
 #include <linux/time.h>
 #include <linux/pagemap.h>
 #include <linux/kthread.h>
@@ -121,6 +124,9 @@
 #include <net/net_namespace.h>
 #endif
 #include <net/genetlink.h>
+// genetlink.h is completely changed in new versions
+#define GENL_ID_GENERATE 0 // this was a static value in previous versions
+
 #include <linux/sysctl.h>
 
 #include "nikal.h"
@@ -367,8 +373,8 @@ static void nNIKAL100_dispatchDPC (unsigned long interruptData);
 static nNIKAL100_tBoolean nNIKAL100_isKernelContiguousPointer(const void *ptr);
 static nNIKAL100_tUPtr nNIKAL230_kernelVirtualToPhysical(const void *ptr);
 
-static int nNIKAL190_vmaPageFaultHandler(nLinux_vmArea *vma, nLinux_vmFault *vmf);
-static int nNIKAL220_vmaPageFaultHandler(nLinux_vmArea *vma, nLinux_vmFault *vmf);
+static int nNIKAL190_vmaPageFaultHandler(nLinux_vmFault *vmf);
+static int nNIKAL220_vmaPageFaultHandler(nLinux_vmFault *vmf);
 
 #ifdef nNIKAL160_kIRQRegs
    static irqreturn_t nNIKAL100_dispatchHardwareInterrupt (int irq, void *context,
@@ -2038,22 +2044,26 @@ nNIKAL100_tBoolean nNIKAL200_isAddressableMemOver4G()
 
 #define NLNIKAL_CMD_SEND     1
 
-static struct genl_family nikal_netlink_family =
-{
-   .id = GENL_ID_GENERATE,
-   .name = "nlnikal",
-   .version = 1,
-   .maxattr = 1
-};
-
 static int nlnikal_msg(struct sk_buff *skb, struct genl_info *info) { return 0; }
 
+// @ckutlu: this needs to be included in family structure
 static struct genl_ops nikal_netlink_ops[] =
 {
    {
       .cmd = NLNIKAL_CMD_SEND,
       .doit = nlnikal_msg
    },
+};
+
+
+static struct genl_family nikal_netlink_family =
+{
+   .id = GENL_ID_GENERATE,
+   .name = "nlnikal",
+   .version = 1,
+   .maxattr = 1,
+   .ops = nikal_netlink_ops,
+   .n_ops=1
 };
 
 
@@ -2078,9 +2088,9 @@ static int __init nNIKAL100_initDriver(void)
    kref_init(&(nNIKAL200_sPALPseudoDeviceInterface.kref));
 
 #ifdef nNIKAL1400_kHasFamilyGenlOpsGroups
-   if ((status = genl_register_family_with_ops(&nikal_netlink_family, nikal_netlink_ops))) return status;
+   if ((status = genl_register_family(&nikal_netlink_family))) return status;
 #else
-   if ((status = genl_register_family_with_ops(&nikal_netlink_family, nikal_netlink_ops, 1))) return status;
+   if ((status = genl_register_family(&nikal_netlink_family))) return status;
 #endif
 
 
@@ -3204,8 +3214,8 @@ static void nNIKAL220_vmaClosePhysical(nLinux_vmArea *vma)
       driver->unmapMemory(vma->vm_private_data);
 }
 
-
-static int nNIKAL190_vmaPageFaultHandler(nLinux_vmArea *vma, nLinux_vmFault *vmf)
+// @ckutlu: Newer kernels(>2.6) vm_operations_struct, fault signature is different
+static int nNIKAL190_vmaPageFaultHandler(nLinux_vmFault *vmf)
 {
    nNIKAL100_tUPtr addr = vmf->pgoff << PAGE_SHIFT;
    vmf->page = (nLinux_physicalPage*)nNIKAL100_incrementPageRefcount((void*)addr);
@@ -3213,9 +3223,10 @@ static int nNIKAL190_vmaPageFaultHandler(nLinux_vmArea *vma, nLinux_vmFault *vmf
 }
 
 
-static int nNIKAL220_vmaPageFaultHandler(nLinux_vmArea *vma, nLinux_vmFault *vmf)
+static int nNIKAL220_vmaPageFaultHandler(nLinux_vmFault *vmf)
 {
-   nNIKAL220_tUserMemMapPrivateData *_vma = vma->vm_private_data;
+   // @ckutlu: Newer kernels vma is in vmf
+   nNIKAL220_tUserMemMapPrivateData *_vma = vmf->vma->vm_private_data;
    nNIKAL220_tPageList *list = _vma->list;
 
    KAL_ASSERT(vmf->pgoff < list->num_pages);
@@ -3623,8 +3634,13 @@ static void nNIKAL100_unmapUserKIOBuf(void *iobuf)
 
 static inline pmd_t *nNIKAL120_getPageTablePMDEntry(nLinux_mm* mm, const void *address)
 {
+// @ckutlu: Added five level pagetable codepath
    pgd_t *pgd;
 #ifdef nNIKAL100_kFourLevelPageTable
+   pud_t *pud;
+#endif
+#ifdef nNIKAL100_kFiveLevelPageTable
+   p4d_t *p4d;
    pud_t *pud;
 #endif
    pmd_t *pmd;
@@ -3632,7 +3648,11 @@ static inline pmd_t *nNIKAL120_getPageTablePMDEntry(nLinux_mm* mm, const void *a
    nNIKAL100_compileTimeAssert(sizeof(pte_t) <= 8, "pte_t is larger then 128 bits!\n");
 
    pgd = pgd_offset(mm, (nNIKAL100_tUPtr)address);
-#ifdef nNIKAL100_kFourLevelPageTable
+#ifdef nNIKAL100_kFiveLevelPageTable
+   p4d = p4d_offset(pgd, (nNIKAL100_tUPtr)address);
+   pud = pud_offset(p4d, (nNIKAL100_tUPtr)address);
+   pmd = pmd_offset(pud, (nNIKAL100_tUPtr)address);
+#elif nNIKAL100_kFourLevelPageTable
    pud = pud_offset(pgd, (nNIKAL100_tUPtr)address);
    pmd = pmd_offset(pud, (nNIKAL100_tUPtr)address);
 #else
@@ -3719,6 +3739,8 @@ static inline int nNIKAL240_do_munmap(struct mm_struct *mm, unsigned long addr, 
 {
 #ifdef nNIKAL100_kFourParameterDoMunmap
    return do_munmap(mm, addr, len, 1);
+#elif nNIKAL100_kFiveParameterDoMunmap //@ckutlu
+   return do_munmap(mm, addr, len, NULL);
 #else
    return do_munmap(mm, addr, len);
 #endif
@@ -4417,10 +4439,10 @@ nNIKAL100_cc void nNIKAL100_releaseSingleUseEvent( void *event )
 }
 
 
-static void nNIKAL100_timeoutCallback( unsigned long package )
+static void nNIKAL100_timeoutCallback( struct timer_list *t )
 {
    nNIKAL100_tTimerCallbackSpec *_timerCallbackPkg =
-      (nNIKAL100_tTimerCallbackSpec *)package;
+      from_timer(_timerCallbackPkg, t, timer);
 
    _timerCallbackPkg->func( _timerCallbackPkg->context );
 }
@@ -4533,26 +4555,22 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_waitForSingleUseEventTimeout
    nNIKAL100_tTimerCallbackSpec *timerCallbackPkg
 )
 {
-   nLinux_timerList timer;
    nNIKAL100_tStatus retVal = nNIKAL100_kStatusSuccess;
 
    nNIKAL120_mCheckStackUsage;
 
-   
-   init_timer( &timer );
-
-   timer.expires  = calculateTimerExpire( timeout );
    nNIKAL100_compileTimeAssert(sizeof(nNIKAL100_tTimerCallbackSpec*)==sizeof(unsigned long), "Oops, resizing nNIKAL100_tTimerCallbackSpec* into unsigned long!");
-   timer.data     = (unsigned long) timerCallbackPkg;
-   timer.function = nNIKAL100_timeoutCallback;
 
+   //@ckutlu: changed these for the new kernel timer system
+   timer_setup(&timerCallbackPkg->timer, nNIKAL100_timeoutCallback, 0);
+   mod_timer(&timerCallbackPkg->timer, calculateTimerExpire( timeout ));
    
-   add_timer( &timer );
+   add_timer( &timerCallbackPkg->timer );
 
    
    retVal = nNIKAL100_waitForSingleUseEvent( event );
 
-   del_timer_sync( &timer );
+   del_timer_sync( &timerCallbackPkg->timer );
 
    return retVal;
 }
@@ -4570,13 +4588,9 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_waitForSingleUseEventTimeoutInterruptib
 
    nNIKAL120_mCheckStackUsage;
 
-   
-   init_timer( &timer );
-
-   timer.expires  = calculateTimerExpire( timeout );
-   timer.data     = (unsigned long) timerCallbackPkg;
-   timer.function = nNIKAL100_timeoutCallback;
-
+   // @ckutlu: changed these for the new kernel timers
+   timer_setup(&timerCallbackPkg->timer, nNIKAL100_timeoutCallback, 0); 
+   mod_timer(&timerCallbackPkg->timer, calculateTimerExpire(timeout));
    
    add_timer( &timer );
 
