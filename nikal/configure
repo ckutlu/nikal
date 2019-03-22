@@ -113,7 +113,7 @@ reply=
 
 MUNMAP_VARIANT=""
 munmap_fourth=$(grep do_munmap $headersDir/include/linux/mm.h | grep -wc "int acct")
-munmap_lhead=$(grep -A 2 do_munmap $headersDir/include/linux/mm.h | grep -wc "list_head \*uf")
+munmap_lhead=$(grep -wA 2 do_munmap $headersDir/include/linux/mm.h | grep -wc "list_head \*uf")
 if [ $munmap_fourth -eq 1 ]; then
    reply="4"
    MUNMAP_VARIANT="-DnNIKAL100_kFourParameterDoMunmap"
