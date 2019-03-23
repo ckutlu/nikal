@@ -15,48 +15,48 @@ $ sudo su
 [enter your sudo password here]
 ```
 
-3. Go to root's home:
+3. Install some prerequisites:
+```
+sudo dnf install make libstdc++.i686 kernel-devel
+```
+
+4. Go to root's home:
 ```
 $ cd ~
 ```
 
-4. Make a temporary folder:
+5. Make a temporary folder:
 ```
 $ mkdir tmp
 ```
 
-5. Mount the iso file:
+6. Mount the iso file:
 ```
 $ mount /path/to/downloaded/file.iso tmp
 ```
 
-6. Make a folder to hold the contents of the iso, and copy stuff in tmp.
+7. Make a folder to hold the contents of the iso, and copy stuff in tmp.
 ```
 $ mkdir ~/nivisa && cp -r tmp nivisa
 ```
 
-7. Unmount tmp:
+8. Unmount tmp:
 ```
 $ umount ~/tmp
 ```
 
-8. Go to nivisa folder and run ./INSTALL:
+9. Go to nivisa folder and run ./INSTALL:
 ```
 $ cd nivisa
 $ ./INSTALL
 ```
 
-9. Checkout FAQ.1 if you encounter a problem here.
+10. Checkout FAQ.1 if you encounter a problem here.
 
-10. You will be prompted to reboot after installation, do it.
+11. You will be prompted to reboot after installation, do it.
 
-11. You need to run 'updateNIDrivers' after installation.  This is where the
+12. You need to run 'updateNIDrivers' after installation.  This is where the
     fun begins.  Make sure you become root again.
-
-12. Install kernel headers, make tool, 
-```
-$ dnf install kernel-devel make
-```
 
 13. Download the patched nikal files and install it at the appropriate
     locations.  
