@@ -37,7 +37,7 @@ extern "C" {
 
 #define nNIKAL1500_kACPIIDLength                9
 
-#ifdef __arm__
+#if ((defined(__arm__) || defined(__mips__)))
 #define nNIKAL100_cc
 #else
 #define nNIKAL100_cc __attribute__((regparm(0)))
@@ -86,7 +86,7 @@ extern "C" {
 /* KAL types */
 /* ---------------------------------------------------------------------- */
 
-#if ((defined(__GNUG__) || defined(__GNUC__)) && (defined(__i386__) || defined(__arm__)))
+#if ((defined(__GNUG__) || defined(__GNUC__)) && (defined(__i386__) || defined(__arm__) || defined(__mips__)))
    typedef char               nNIKAL100_tText;
    typedef unsigned char      nNIKAL100_tU8;
    typedef char               nNIKAL100_tI8;
@@ -657,6 +657,7 @@ nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_sleepTimeoutInterruptible(
 nNIKAL100_cc void nNIKAL100_sleepTimeout(nNIKAL100_tU32 timeToSleepInNanoseconds);
 nNIKAL100_cc void nNIKAL250_sleepTimeout(nNIKAL100_tU32 timeToSleepInMicroseconds);
 nNIKAL100_cc void nNIKAL200_yield(void);
+nNIKAL100_cc nNIKAL100_tU64 nNIKAL1_getMonotonicCounter (void);
 nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_getTimerCount (void);
 nNIKAL100_cc nNIKAL100_tU64 nNIKAL110_getTimerCount (void);
 nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_getTimeOfDayInterval (void);
@@ -896,6 +897,7 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL220_tUserMemMap_mapPhysicalAddress(nNIKAL22
 
 #define nNIKAL230_kPhysMemFlagDefault       0UL
 #define nNIKAL230_kPhysMemFlagWriteCombined (1UL << 0)
+#define nNIKAL1750_kPhysMemFlagCache        (1UL << 1)
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL230_tUserMemMap_mapPhysicalAddress(nNIKAL220_tUserMemMap *vma,
                                                                  nNIKAL100_tU64 address,
                                                                  size_t size,
