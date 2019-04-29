@@ -132,7 +132,7 @@
 #include "nikal.h"
 
 #ifdef MODULE_LICENSE
-   MODULE_LICENSE("Copyright (c) 2002-2017 National Instruments Corporation.  All Rights Reserved.  Any and all use of the copyrighted materials is subject to the then current terms and conditions of the applicable license agreement, which can be found at <http://www.ni.com/linux/>.");
+   MODULE_LICENSE("Copyright (c) 2002-2018 National Instruments Corporation.  All Rights Reserved.  Any and all use of the copyrighted materials is subject to the then current terms and conditions of the applicable license agreement, which can be found at <http://www.ni.com/linux/>.");
 #endif
 
 #ifdef MODULE_AUTHOR
