@@ -13,7 +13,6 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <linux/timer.h>
 
 /* ---------------------------------------------------------------------- */
 /* KAL macros */
@@ -146,7 +145,6 @@ typedef struct
 {
    nNIKAL100_tTimerCallback func;
    void *context;
-   struct timer_list timer;
 } nNIKAL100_tTimerCallbackSpec;
 
 typedef struct nNIKAL100_tListNode

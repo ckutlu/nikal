@@ -1,18 +1,14 @@
 #!/bin/bash
 #
 #  configure
-#  Shell script to configure the NI-KAL kernel build, creates Makefile.in
-#  This script must be run before compiling the NI-KAL kernel module
+#  Shell script to configure the NI-KAL kernel build, creates Kbuild
 #
-#   Copyright 2003-2005,
+#  Copyright 2003-2017,
 #  National Instruments Corporation.
 #  All Rights reserved.
 #
 #  originated:  17 March 2003
 #
-
-statusFail=1
-statusSuccess=0
 
 # readlink "$0" can return a relative symlink
 # in that case, we need to tread carefully when retrieving the directory
@@ -27,181 +23,254 @@ __SELF__=$(basename ${__TMPSELF__})
 # containing the symlink target.
 __DIR__="$(cd "$(dirname "$0")" && cd "$(dirname "${__TMPSELF__}")" && pwd)"
 
-# Configure logging
-LOG_MSG_TAG="nikal"
-
-# Get useful functions to help with install
-if [[ -e /usr/share/nikal/installerUtility.sh ]]; then
-   source /usr/share/nikal/installerUtility.sh
-elif [[ -e /usr/local/natinst/nikal/bin/installerUtility.sh ]]; then
-   source /usr/local/natinst/nikal/bin/installerUtility.sh
-elif [[ -e ${__DIR__}/../../bin/installerUtility.sh ]]; then
-   source ${__DIR__}/../../bin/installerUtility.sh
-elif [[ -e ${__DIR__}/installerUtility.sh ]]; then
-   source ${__DIR__}/installerUtility.sh
-else
-   echo "Error opening the NI-KAL driver utility library." >&2
-   exit 1
-fi
-
 # Set local to "C" or Posix to make grep -w work
 export LC_ALL=C
 
-if ! nikalInstallationCheck; then
-   exit $statusFail
+function is_valid_kernel_build() {
+   local test_build=$1
+   test -r "${test_build}/.config"
+}
+
+function is_valid_kernel_source() {
+   local test_source=$1
+   test -r "${test_source}/include/linux/module.h"
+}
+
+if [[ -z ${INSTALL_MOD_PATH} ]]; then
+   INSTALL_MOD_PATH=
 fi
 
-info " "
-info "Configuring for linux kernel version $kernelVersion."
-info " "
-
-niModulePath=$INSTALL_MOD_PATH/lib/modules/$kernelVersion/kernel/natinst
-
-info "Using kernel headers found in $headersDir."
-info "If this does not correspond to the location of the $kernelVersion headers,"
-info "then define KERNELHEADERS in your environment to point to the location"
-info "of the kernel headers, define KERNELTARGET as the version of the"
-info "kernel for which to compile, and then rerun $0."
-info " "
-
-if ! requirecommands cat grep sed awk wc cut expr; then
-   error "Some required tools are missing or were not found."
-   return $statusFail
+if [[ -n ${KERNELHEADERS} ]]; then 
+   USE_KERNELHEADERS="${KERNELHEADERS}"
+elif [[ -n ${KERNELDIR} ]]; then
+   USE_KERNELDIR="${KERNELDIR}"
 fi
+
+# Attempt to derive kernel config dir from kernel headers dir
+if [[ -n ${USE_KERNELHEADERS} ]] && [[ -z ${USE_KERNELDIR} ]]; then
+   if is_valid_kernel_build "${USE_KERNELHEADERS}"; then
+      # KERNELHEADERS also contains config
+      USE_KERNELDIR="${USE_KERNELHEADERS}"
+   elif is_valid_kernel_build "$(dirname "${USE_KERNELHEADERS}")/build"; then
+      # split /source and /build dirs
+      USE_KERNELDIR="$(cd "$(dirname "${USE_KERNELHEADERS}")/build"; pwd)"
+   fi
+fi
+
+# Attempt to derive kernel headers dir from kernel config dir
+if [[ -n ${USE_KERNELDIR} ]] && [[ -z ${USE_KERNELHEADERS} ]]; then
+   if is_valid_kernel_source "${USE_KERNELDIR}"; then
+      # KERNELDIR also contains headers
+      USE_KERNELHEADERS="${USE_KERNELDIR}"
+   elif is_valid_kernel_source "$(cd "$(dirname "${USE_KERNELDIR}")/source"; pwd)"; then
+      # split /source and /build dirs
+      USE_KERNELHEADERS="$(cd "$(dirname "${USE_KERNELDIR}")/source"; pwd)"
+   fi
+fi
+
+# Look up KERNELDIR and KERNELHEADERS for an installed kernel
+# version, either via KERNELVER or `uname -r`
+if [[ -z ${USE_KERNELDIR} ]] && [[ -z ${USE_KERNELHEADERS} ]]; then
+   if [[ -n ${KERNELVER} ]]; then
+      echo "KERNELVER=${KERNELVER}"
+      USE_KERNELVER="${KERNELVER}"
+   else
+      echo "uname -r=$(uname -r)"
+      USE_KERNELVER="$(uname -r)"
+   fi
+   if is_valid_kernel_source "${INSTALL_MOD_PATH}/lib/modules/${USE_KERNELVER}/build"; then
+      USE_KERNELHEADERS="${INSTALL_MOD_PATH}/lib/modules/${USE_KERNELVER}/build"
+   elif is_valid_kernel_source "${INSTALL_MOD_PATH}/lib/modules/${USE_KERNELVER}/source"; then
+      USE_KERNELHEADERS="${INSTALL_MOD_PATH}/lib/modules/${USE_KERNELVER}/source"
+   fi
+   if is_valid_kernel_build "${INSTALL_MOD_PATH}/lib/modules/${USE_KERNELVER}/build"; then
+      USE_KERNELDIR="${INSTALL_MOD_PATH}/lib/modules/${USE_KERNELVER}/build"
+   elif is_valid_kernel_build "${INSTALL_MOD_PATH}/lib/modules/${USE_KERNELVER}/source"; then
+      USE_KERNELDIR="${INSTALL_MOD_PATH}/lib/modules/${USE_KERNELVER}/source"
+   fi
+fi
+echo "Using kernel headers found in:"
+echo "    ${USE_KERNELHEADERS}"
+echo "If this location is not correct, then set the KERNELHEADERS"
+echo "environment variable to the location of the kernel headers."
+echo ""
+echo "Verifying that KERNELHEADERS has a valid kernel source path:"
+if ! is_valid_kernel_source "${USE_KERNELHEADERS}"; then
+   echo "    ${USE_KERNELHEADERS} is not a valid kernel source path."
+   exit 1
+else
+   echo "    Passed."
+fi
+echo ""
+
+echo "Using kernel configuration files found in:"
+echo "    ${USE_KERNELDIR}"
+echo "If this location is not correct, then set the KERNELVER"
+echo "environment variable to the name of an installed kernel, or"
+echo "set KERNELDIR to the location of the kernel configuration files."
+echo ""
+echo "Verifying that KERNELDIR has a valid kernel config path:"
+if ! is_valid_kernel_build "${USE_KERNELDIR}"; then
+   echo "    ${USE_KERNELDIR} is not a valid kernel config path."
+   exit 1
+else
+   echo "    Passed."
+fi
+echo ""
 
 ### Determining kernel version code ###
-if [ -e $headersDir/include/generated/uapi/linux/version.h ]; then
-   LINUX_VERSION_CODE=$(cat $headersDir/include/generated/uapi/linux/version.h | grep LINUX_VERSION_CODE | cut -d " " -f 3)
-   VERSION_DIR=$headersDir/include/generated/uapi/linux/version.h
-elif [ -e $headersDir/include/linux/version.h ]; then
-   LINUX_VERSION_CODE=$(cat $headersDir/include/linux/version.h | grep LINUX_VERSION_CODE | cut -d " " -f 3)
-   VERSION_DIR=$headersDir/include/linux/version.h
-elif [ -e $headersDir/Makefile ]; then
-   LINUX_VERSION=$(cat $headersDir/Makefile | grep "^VERSION" | sed 's/.*= *//')
-   LINUX_PATCHLEVEL=$(cat $headersDir/Makefile | grep "^PATCHLEVEL" | sed 's/.*= *//')
-   LINUX_SUBLEVEL=$(cat $headersDir/Makefile | grep "^SUBLEVEL" | sed 's/.*= *//')
-   LINUX_VERSION_CODE=$(expr $LINUX_VERSION * 65536 + $LINUX_PATCHLEVEL * 256 + $LINUX_SUBLEVEL )
-else
-   LINUX_VERSION_CODE=$(expr $kernelMajor * 65536 + $kernelMinor * 256 + $kernelPatchLevel )
+if [ -e ${USE_KERNELDIR}/include/generated/uapi/linux/version.h ]; then
+   LINUX_VERSION_CODE=$(cat ${USE_KERNELDIR}/include/generated/uapi/linux/version.h | grep LINUX_VERSION_CODE | cut -d " " -f 3)
+   VERSION_DIR=${USE_KERNELDIR}/include/generated/uapi/linux/version.h
+elif [ -e ${USE_KERNELHEADERS}/include/linux/version.h ]; then
+   LINUX_VERSION_CODE=$(cat ${USE_KERNELHEADERS}/include/linux/version.h | grep LINUX_VERSION_CODE | cut -d " " -f 3)
+   VERSION_DIR=${USE_KERNELHEADERS}/include/linux/version.h
+elif [ -e ${USE_KERNELHEADERS}/Makefile ]; then
+   LINUX_VERSION=$(cat ${USE_KERNELHEADERS}/Makefile | grep "^VERSION" | sed 's/.*= *//')
+   LINUX_PATCHLEVEL=$(cat ${USE_KERNELHEADERS}/Makefile | grep "^PATCHLEVEL" | sed 's/.*= *//')
+   LINUX_SUBLEVEL=$(cat ${USE_KERNELHEADERS}/Makefile | grep "^SUBLEVEL" | sed 's/.*= *//')
+   LINUX_VERSION_CODE=$(expr ${LINUX_VERSION} * 65536 + ${LINUX_PATCHLEVEL} * 256 + ${LINUX_SUBLEVEL} )
 fi
-LINUX_260_VERSION_CODE=132608
-LINUX_270_VERSION_CODE=132864
 
 ### Determining kernel variant ###
+echo "Testing kernel capabilities and interfaces:"
 reply=
 
 VERSION_VARIANT=""
-if [ "$VERSION_DIR" = "$headersDir/include/generated/uapi/linux/version.h" ]; then
+if [ "$VERSION_DIR" = "${USE_KERNELDIR}/include/generated/uapi/linux/version.h" ]; then
    reply="yes"
    VERSION_VARIANT="-DnNIKAL250_kUAPIVersion"
 else
    reply="no"
 fi
-info "Kernel has version.h in include/generated/uapi/: $reply"
+echo "    Kernel has version.h in include/generated/uapi/: $reply"
+reply=
+
+MODULE_INIT_AND_CORE_VARIANT=""
+struct_module_init_layout=$(sed '/struct module$/{ N; s#\n{# {# }' ${USE_KERNELHEADERS}/include/linux/module.h | awk '/struct module \{/,/\}/' | grep -wc init_layout)
+if [ "${struct_module_init_layout}" -gt 0 ]; then
+   reply="init_layout and core_layout"
+   MODULE_INIT_AND_CORE_VARIANT="-DnNIKAL100_kStructModuleHasInitAndCoreLayouts"
+else
+   reply="module_init and module_core"
+fi
+echo "    Kernel's struct module layout members: $reply"
 reply=
 
 REPARENT_VARIANT=""
-reparent_to_init=$(grep reparent_to_init $headersDir/kernel/* 2>/dev/null | grep -wc reparent_to_init)
+reparent_to_init=$(grep reparent_to_init ${USE_KERNELHEADERS}/kernel/* 2>/dev/null | grep -wc reparent_to_init)
 if [ $reparent_to_init -ne 0 ]; then
    reply="yes"
    REPARENT_VARIANT="-DnNIKAL100_kReparentToInit"
 else
    reply="no"
 fi
-info "Kernel has reparent_to_init(): $reply"
+echo "    Kernel has reparent_to_init(): $reply"
 reply=
 
 MUNMAP_VARIANT=""
-munmap_fourth=$(grep do_munmap $headersDir/include/linux/mm.h | grep -wc "int acct")
-munmap_lhead=$(grep -wA 2 do_munmap $headersDir/include/linux/mm.h | grep -wc "list_head \*uf")
-if [ $munmap_fourth -eq 1 ]; then
-   reply="4"
-   MUNMAP_VARIANT="-DnNIKAL100_kFourParameterDoMunmap"
-elif [ $munmap_lhead -eq 1 ]; then
-   reply="5"
-   MUNMAP_VARIANT="-DnNIKAL100_kFiveParameterDoMunmap"
+munmap_fourth_acct=$(awk '/do_munmap\(/,/\)/' ${USE_KERNELHEADERS}/include/linux/mm.h | grep -wc "int acct")
+munmap_fourth_uf=$(awk '/do_munmap\(/,/\)/' ${USE_KERNELHEADERS}/include/linux/mm.h | grep -wc "struct list_head")
+if [ $munmap_fourth_acct -eq 1 ]; then
+   reply="4 (acct)"
+   MUNMAP_VARIANT="-DnNIKAL100_kDoMunmapHasAcct"
+elif [ $munmap_fourth_uf -eq 1 ]; then
+   reply="4 (uf)"
+   MUNMAP_VARIANT="-DnNIKAL1_kDoMunmapHasUf"
 else
    reply="3"
 fi
-info "Number of arguments for do_munmap(): $reply"
+echo "    Number of arguments for do_munmap(): $reply"
 reply=
 
 VMMMAP_VARIANT=""
-vm_mmap=$(grep -wc vm_mmap $headersDir/include/linux/mm.h)
+vm_mmap=$(grep -wc vm_mmap ${USE_KERNELHEADERS}/include/linux/mm.h)
 if [ $vm_mmap -ne 0 ]; then
    reply="yes"
    VMMMAP_VARIANT="-DnNIKAL240_kHasVmMmap"
 else
    reply="no"
 fi
-info "Kernel has vm_mmap(): $reply"
+echo "    Kernel has vm_mmap(): $reply"
 reply=
 
 VMMUNMAP_VARIANT=""
-vm_munmap=$(grep -wc vm_munmap $headersDir/include/linux/mm.h)
+vm_munmap=$(grep -wc vm_munmap ${USE_KERNELHEADERS}/include/linux/mm.h)
 if [ $vm_munmap -ne 0 ]; then
    reply="yes"
    VMMUNMAP_VARIANT="-DnNIKAL240_kHasVmMunmap"
 else
    reply="no"
 fi
-info "Kernel has vm_munmap(): $reply"
+echo "    Kernel has vm_munmap(): $reply"
 reply=
 
 VM_RESERVED_VARIANT=""
-vm_rsvd=$(grep -wc VM_RESERVED $headersDir/include/linux/mm.h)
+vm_rsvd=$(grep -wc VM_RESERVED ${USE_KERNELHEADERS}/include/linux/mm.h)
 if [ $vm_rsvd -ne 0 ]; then
    reply="yes"
    VM_RESERVED_VARIANT="-DnNIKAL240_kHasVM_RESERVED"
 else
    reply="no"
 fi
-info "Kernel has VM_RESERVED: $reply"
+echo "    Kernel has VM_RESERVED: $reply"
+reply=
+
+VMOPS_STRUCT_FAULT_VARIANT=""
+vm_ops_struct_fault_vm_area_struct_count=$(awk '/struct vm_operations_struct \{/, /}/' ${USE_KERNELHEADERS}/include/linux/mm.h | awk '/int \(\*fault\)\(/, /\)/' | grep -wc 'vm_area_struct')
+if [ $vm_ops_struct_fault_vm_area_struct_count -ne 0 ]; then
+   reply="yes"
+   VMOPS_STRUCT_FAULT_VARIANT="-DnNIKAL1_kFaultHandlerTakesVmAreaStruct"
+else
+   reply="no"
+fi
+echo "    vm_operations_struct fault handler callback takes a vm_area_struct parameter: $reply"
 reply=
 
 GET_USER_PAGES_VARIANT=""
-gup_decl=$(awk '/long get_user_pages\(/, /\);/' $headersDir/include/linux/mm.h)
+gup_decl=$(awk '/long get_user_pages\(/, /\);/' ${USE_KERNELHEADERS}/include/linux/mm.h)
 if grep -c "gup_flags" 2>&1 > /dev/null <<< "${gup_decl}"; then
+   reply="implicit \"current\" task and combined page flags param."
    GET_USER_PAGES_VARIANT="-DnNIKAL1700_kGetUserPagesCombinedFlags"
-   info "Kernel get_user_pages() has implicit \"current\" task and combined page flags param."
 elif grep -c "(unsigned long start" 2>&1 > /dev/null <<< "${gup_decl}"; then
+   reply="implicit \"current\" task and separate params for each flag."
    GET_USER_PAGES_VARIANT="-DnNIKAL1600_kGetUserPagesImpliesCurrentTask"
-   info "Kernel get_user_pages() has implicit \"current\" task."
 else
-   info "Kernel get_user_pages() requires explicit task and separate params for each flag."
+   reply="explicit task and separate params for each flag."
 fi
+echo "    Kernel get_user_pages() requires: $reply"
 
 BUSNRES_VARIANT=""
-busnres=$(grep 'struct[[:space:]]\+resource' $headersDir/include/linux/pci.h | grep -wc 'busn_res')
+busnres=$(grep 'struct[[:space:]]\+resource' ${USE_KERNELHEADERS}/include/linux/pci.h | grep -wc 'busn_res')
 if [ $busnres -ne 0 ]; then
    reply="yes"
    BUSNRES_VARIANT="-DnNIKAL240_kHasPciBusnRes"
 else
    reply="no"
 fi
-info "Kernel struct pci_dev has busn_res member: $reply"
+echo "    Kernel struct pci_dev has busn_res member: $reply"
 reply=
 
 ACPIREMOVE_VARIANT=""
-acpiremovetype=$(grep 'typedef.\+acpi_op_remove' $headersDir/include/acpi/acpi_bus.h | grep -wc 'type')
+acpiremovetype=$(grep 'typedef.\+acpi_op_remove' ${USE_KERNELHEADERS}/include/acpi/acpi_bus.h | grep -wc 'type')
 if [ "$acpiremovetype" -ne 0 ]; then
    reply="yes"
    ACPIREMOVE_VARIANT="-DnNIKAL1500_kACPIRemoveHasTypeInput"
 else
    reply="no"
 fi
-info "Kernel acpi_op_remove callback has additional \"type\" parameter: $reply"
+echo "    Kernel acpi_op_remove callback has additional \"type\" parameter: $reply"
 reply=
 
 OFFSET_VARIANT=""
 pte_offset_kernel_path=""
-if [ -d $headersDir/arch/x86/include/asm ]; then
-   pte_offset_kernel_path="$headersDir/arch/x86/include/asm/*"
-elif [ -d $headersDir/arch/arm/include/asm ]; then
-   pte_offset_kernel_path="$headersDir/arch/arm/include/asm/*"
+if [ -d ${USE_KERNELHEADERS}/arch/x86/include/asm ]; then
+   pte_offset_kernel_path="${USE_KERNELHEADERS}/arch/x86/include/asm/*"
+elif [ -d ${USE_KERNELHEADERS}/arch/arm/include/asm ]; then
+   pte_offset_kernel_path="${USE_KERNELHEADERS}/arch/arm/include/asm/*"
 fi
-if [ -d $headersDir/include/asm ]; then
-   pte_offset_kernel_path="$pte_offset_kernel_path $headersDir/include/asm/*"
+if [ -d ${USE_KERNELHEADERS}/include/asm ]; then
+   pte_offset_kernel_path="$pte_offset_kernel_path ${USE_KERNELHEADERS}/include/asm/*"
 fi
 pte_offset_kernel=$(grep pte_offset_kernel $pte_offset_kernel_path 2>/dev/null | grep -wc pte_offset_kernel)
 if [ $pte_offset_kernel -ne 0 ]; then
@@ -210,18 +279,17 @@ if [ $pte_offset_kernel -ne 0 ]; then
 else
    reply="pte_offset()"
 fi
-info "pte_offset function: $reply"
+echo "    pte_offset function: $reply"
 reply=
 
 PAGE_TABLE_LEVEL_VARIANT=""
-if [ -e $headersDir/include/asm-generic ]; then
-   pud_offset_exists=$(grep pud_offset $headersDir/include/asm-generic/* 2>/dev/null | grep -wc pud_offset)
-   # @ckutlu
-   p4d_offset_exists=$(grep p4d_offset $headersDir/include/asm-generic/* 2>/dev/null | grep -wc p4d_offset)
-   if [ $p4d_offset_exists -ne 0 ]; then
+if [ -e ${USE_KERNELHEADERS}/include/asm-generic ]; then
+   p4d_offset_count=$(grep p4d_offset ${USE_KERNELHEADERS}/include/asm-generic/* 2>/dev/null | grep -wc p4d_offset)
+   pud_offset_count=$(grep pud_offset ${USE_KERNELHEADERS}/include/asm-generic/* 2>/dev/null | grep -wc pud_offset)
+   if [ $p4d_offset_count -ne 0 ]; then
       reply="5"
-      PAGE_TABLE_LEVEL_VARIANT="-DnNIKAL100_kFiveLevelPageTable"
-   elif [ $pud_offset_exists -ne 0 ]; then
+      PAGE_TABLE_LEVEL_VARIANT="-DnNIKAL1_kFiveLevelPageTable"
+   elif [ $pud_offset_count -ne 0 ]; then
       reply="4"
       PAGE_TABLE_LEVEL_VARIANT="-DnNIKAL100_kFourLevelPageTable"
    else
@@ -230,25 +298,25 @@ if [ -e $headersDir/include/asm-generic ]; then
 else
    reply="3"
 fi
-info "Levels in page table: $reply"
+echo "    Levels in page table: $reply"
 reply=
 
 KZALLOC_VARIANT=""
-kzalloc=$(grep -wc kzalloc $headersDir/include/linux/slab.h)
+kzalloc=$(grep -wc kzalloc ${USE_KERNELHEADERS}/include/linux/slab.h)
 if [ $kzalloc -ne 0 ]; then
    reply="yes"
    KZALLOC_VARIANT="-DnNIKAL200_kHasKzalloc"
 else
    reply="no"
 fi
-info "Kernel has kzalloc: $reply"
+echo "    Kernel has kzalloc: $reply"
 reply=
 
 CHAINED_SGL_VARIANT=""
-chained_sgl=$(grep -wc sg_alloc_table $headersDir/include/linux/scatterlist.h)
+chained_sgl=$(grep -wc sg_alloc_table ${USE_KERNELHEADERS}/include/linux/scatterlist.h)
 if [ $chained_sgl -ne 0 ]; then
    # TODO: CAR 450729.  There's a better way to do this.
-   if [ -d $headersDir/arch/arm/include/asm ]; then
+   if [ -d ${USE_KERNELHEADERS}/arch/arm/include/asm ]; then
       reply="limited"
       CHAINED_SGL_VARIANT="-DnNIKAL220_kHasSGLPageAPI"
    else
@@ -258,343 +326,390 @@ if [ $chained_sgl -ne 0 ]; then
 else
    reply="no"
 fi
-info "Kernel has chained SGL support: $reply"
+echo "    Kernel has chained SGL support: $reply"
 reply=
 
 USB_ALTSETTINGS_PTR_VARIANT=""
-cur_altsetting=$(grep -wc cur_altsetting $headersDir/include/linux/usb.h)
+cur_altsetting=$(grep -wc cur_altsetting ${USE_KERNELHEADERS}/include/linux/usb.h)
 if [ $cur_altsetting -ne 0 ]; then
    reply="cur_altsetting"
    USB_ALTSETTINGS_PTR_VARIANT="-DnNIKAL100_kCurrentAlternateSetting"
 else
    reply="act_altsetting"
 fi
-info "USB altsetting name: $reply"
+echo "    USB altsetting name: $reply"
 reply=
 
 USB_INTERFACE_REFCOUNT_VARIANT=""
-usb_get_intf=$(grep -wc usb_get_intf $headersDir/include/linux/usb.h)
+usb_get_intf=$(grep -wc usb_get_intf ${USE_KERNELHEADERS}/include/linux/usb.h)
 if [ $usb_get_intf -ne 0 ]; then
    reply="yes"
    USB_INTERFACE_REFCOUNT_VARIANT="-DnNIKAL100_kUSBReferenceCountFunctions"
 else
    reply="no"
 fi
-info "Kernel has usb_get_intf(): $reply"
+echo "    Kernel has usb_get_intf(): $reply"
 reply=
 
 USB_INTERFACE_CACHE_VARIANT=""
-usb_interface_cache=$(awk '/struct usb_host_config \{/, /}/' $headersDir/include/linux/usb.h | grep -wc intf_cache)
+usb_interface_cache=$(awk '/struct usb_host_config \{/, /}/' ${USE_KERNELHEADERS}/include/linux/usb.h | grep -wc intf_cache)
 if [ $usb_interface_cache -ne 0 ]; then
    reply="yes"
    USB_INTERFACE_CACHE_VARIANT="-DnNIKAL100_kUSBInterfaceCacheMember"
 else
    reply="no"
 fi
-info "Kernel has intf_cache member in usb_host_config: $reply"
+echo "    Kernel has intf_cache member in usb_host_config: $reply"
 reply=
 
 USB_DEVICE_EP_ARRAY_VARIANT=""
-usb_device_ep_array=$(awk '/struct usb_device \{/, /}/' $headersDir/include/linux/usb.h | grep -wc ep_out)
+usb_device_ep_array=$(awk '/struct usb_device \{/, /}/' ${USE_KERNELHEADERS}/include/linux/usb.h | grep -wc ep_out)
 if [ $usb_device_ep_array -ne 0 ]; then
    reply="yes"
    USB_DEVICE_EP_ARRAY_VARIANT="-DnNIKAL100_kUSBDeviceEndpointArray"
 else
    reply="no"
 fi
-info "Kernel has ep[] members in usb_device: $reply"
+echo "    Kernel has ep[] members in usb_device: $reply"
 reply=
 
 USB_SET_CONFIGURATION_VARIANT=""
-usb_set_configuration=$(grep -wc usb_set_configuration $headersDir/include/linux/usb.h)
+usb_set_configuration=$(grep -wc usb_set_configuration ${USE_KERNELHEADERS}/include/linux/usb.h)
 if [ $usb_set_configuration -ne 0 ]; then
    reply="yes"
    USB_SET_CONFIGURATION_VARIANT="-DnNIKAL100_kUSBSetConfiguration"
 else
    reply="no"
 fi
-info "Kernel exports usb_set_configuration(): $reply"
+echo "    Kernel exports usb_set_configuration(): $reply"
 reply=
 
 USB_TIMEOUT_UNITS_VARIANT=""
-usb_timeout_units=$(grep -B 7 USB_CTRL_GET_TIMEOUT $headersDir/include/linux/usb.h | grep -wc milliseconds)
+usb_timeout_units=$(grep -B 7 USB_CTRL_GET_TIMEOUT ${USE_KERNELHEADERS}/include/linux/usb.h | grep -wc milliseconds)
 if [ $usb_timeout_units -ne 0 ]; then
    reply="msec"
    USB_TIMEOUT_UNITS_VARIANT="-DnNIKAL100_kUSBmsecTimeout"
 else
    reply="sec"
 fi
-info "Units of USB_CTRL_GET_TIMEOUT: $reply"
+echo "    Units of USB_CTRL_GET_TIMEOUT: $reply"
 reply=
 
 USB_OWNER_VARIANT=""
-usb_owner=$(awk '/struct usb_driver \{/, /}/' $headersDir/include/linux/usb.h | grep -wc owner)
+usb_owner=$(awk '/struct usb_driver \{/, /}/' ${USE_KERNELHEADERS}/include/linux/usb.h | grep -wc owner)
 if [ $usb_owner -ne 0 ]; then
    reply="yes"
    USB_OWNER_VARIANT="-DnNIKAL130_kUSBOwnerMember"
 else
    reply="no"
 fi
-info "Kernel has owner member in usb_driver: $reply"
+echo "    Kernel has owner member in usb_driver: $reply"
 reply=
 
 MUTEX_VARIANT=""
-if [ -e $headersDir/include/linux/mutex.h ]; then
+if [ -e ${USE_KERNELHEADERS}/include/linux/mutex.h ]; then
    reply="yes"
    MUTEX_VARIANT="-DnNIKAL150_kMutexMethod"
 else
    reply="no"
 fi
-info "Kernel has mutex method: $reply"
+echo "    Kernel has mutex method: $reply"
 reply=
 
 COMPLETION_VARIANT=""
-completion_interruptible=$(grep -wc wait_for_completion_interruptible $headersDir/include/linux/completion.h)
+completion_interruptible=$(grep -wc wait_for_completion_interruptible ${USE_KERNELHEADERS}/include/linux/completion.h)
 if [ $completion_interruptible -ne 0 ]; then
    reply="yes"
    COMPLETION_VARIANT="-DnNIKAL200_kCompletion"
 else
    reply="no"
 fi
-info "Kernel has wait_for_completion_interruptible: $reply"
+echo "    Kernel has wait_for_completion_interruptible: $reply"
 reply=
 
 CONFIG_VARIANT=""
-if [ -e $headersDir/include/linux/config.h ]; then
+if [ -e ${USE_KERNELHEADERS}/include/linux/config.h ]; then
    reply="yes"
    CONFIG_VARIANT="-DnNIKAL160_kConfig"
 else
    reply="no"
 fi
-info "Kernel has config.h: $reply"
+echo "    Kernel has config.h: $reply"
 reply=
 
 IOCTL32_VARIANT=""
-if [ -e $headersDir/include/linux/ioctl32.h ]; then
+if [ -e ${USE_KERNELHEADERS}/include/linux/ioctl32.h ]; then
    reply="yes"
    IOCTL32_VARIANT="-DnNIKAL170_kIoctl32"
 else
    reply="no"
 fi
-info "Kernel has ioctl32.h: $reply"
+echo "    Kernel has ioctl32.h: $reply"
 reply=
 
 IRQ_REGS_VARIANT=""
-pt_regs=$(grep -wc pt_regs $headersDir/include/linux/interrupt.h)
+pt_regs=$(grep -wc pt_regs ${USE_KERNELHEADERS}/include/linux/interrupt.h)
 if [ $pt_regs -ne 0 ]; then
    reply="yes"
    IRQ_REGS_VARIANT="-DnNIKAL160_kIRQRegs"
 else
    reply="no"
 fi
-info "IRQ handlers have pt_regs: $reply"
+echo "    IRQ handlers have pt_regs: $reply"
 reply=
 
 WORKQUEUE_VARIANT=""
-work_struct_timer=$(awk '/struct work_struct \{/, /}/' $headersDir/include/linux/workqueue.h | grep -wc timer)
+work_struct_timer=$(awk '/struct work_struct \{/, /}/' ${USE_KERNELHEADERS}/include/linux/workqueue.h | grep -wc timer)
 if [ $work_struct_timer -eq 0 ]; then
    reply="yes"
    WORKQUEUE_VARIANT="-DnNIKAL160_kWorkqueueNonDelay"
 else
    reply="no"
 fi
-info "Kernel has work_struct and delayed_work: $reply"
+echo "    Kernel has work_struct and delayed_work: $reply"
+reply=
+
+STRUCT_TIMER_LIST_VARIANT=""
+struct_timer_list_data=$(awk '/struct timer_list \{/, /}/' ${USE_KERNELHEADERS}/include/linux/timer.h | grep -wc 'unsigned long[[:space:]]*data')
+if [ $struct_timer_list_data -eq 0 ]; then
+   reply="no"
+elif [ $struct_timer_list_data -eq 1 ]; then
+   reply="yes"
+   STRUCT_TIMER_LIST_VARIANT="-DnNIKAL1_kTimerHasDataMember"
+else
+   reply="error - incompatible structure detected"
+fi
+echo "    Kernel timer_list has data member: $reply"
 reply=
 
 IOREMAP_WC_VARIANT=""
-ioremap_wc=$(grep -wc ioremap_wc $headersDir/include/asm-generic/iomap.h)
+ioremap_wc=$(grep -wc ioremap_wc ${USE_KERNELHEADERS}/include/asm-generic/iomap.h)
 if [ $ioremap_wc -ne 0 ]; then
    reply="yes"
    IOREMAP_WC_VARIANT="-DnNIKAL230_kHas_ioremap_wc"
 else
    reply="no"
 fi
-info "Kernel has ioremap_wc: $reply"
+echo "    Kernel has ioremap_wc: $reply"
 reply=
 
 CRED_VARIANT=""
-if [ -e $headersDir/include/linux/cred.h ]; then
+if [ -e ${USE_KERNELHEADERS}/include/linux/cred.h ]; then
    reply="yes"
    CRED_VARIANT="-DnNIKAL230_kHasCred"
 else
    reply="no"
 fi
-info "Kernel has cred.h: $reply"
+echo "    Kernel has cred.h: $reply"
 reply=
 
 UIDGID_VARIANT=""
-if [ -e $headersDir/include/linux/uidgid.h ]; then
+if [ -e ${USE_KERNELHEADERS}/include/linux/uidgid.h ]; then
    reply="yes"
    UIDGID_VARIANT="-DnNIKAL1400_kHasUidGid"
 else
    reply="no"
 fi
-info "Kernel has uidgid.h: $reply"
+echo "    Kernel has uidgid.h: $reply"
 reply=
 
 UMH_VARIANT=""
-umh_constants=$(grep -wc UMH_NO_WAIT $headersDir/include/linux/kmod.h)
+umh_constants=$(grep -wc UMH_NO_WAIT ${USE_KERNELHEADERS}/include/linux/kmod.h)
 if [ $umh_constants -ne 0 ]; then
    reply="yes"
    UMH_VARIANT="-DnNIKAL240_kHasUMHConstants"
 else
    reply="no"
 fi
-info "Kernel has UMH constants: $reply"
+echo "    Kernel has UMH constants: $reply"
 reply=
 
 HAS_CREATE_PROC_READ_ENTRY=""
-proc_create_data=$(grep -wc create_proc_read_entry $headersDir/include/linux/proc_fs.h)
+proc_create_data=$(grep -wc create_proc_read_entry ${USE_KERNELHEADERS}/include/linux/proc_fs.h)
 if [ $proc_create_data -ne 0 ]; then
    reply="yes"
    HAS_CREATE_PROC_READ_ENTRY="-DnNIKAL1400_kHasCreateProcReadEntry"
 else
    reply="no"
 fi
-info "Kernel has create_proc_read_entry: $reply"
+echo "    Kernel has create_proc_read_entry: $reply"
 reply=
 
 NAMESPACED_GENETLINK_VARIANT=""
-namespaced_genetlink=$(awk '/genlmsg_unicast\(/, /\)/' $headersDir/include/net/genetlink.h | grep -c 'struct net')
+namespaced_genetlink=$(awk '/genlmsg_unicast\(/, /\)/' ${USE_KERNELHEADERS}/include/net/genetlink.h | grep -c 'struct net')
 if [ $namespaced_genetlink -ne 0 ]; then
    reply="yes"
    NAMESPACED_GENETLINK_VARIANT="-DnNIKAL250_kHasNamespacedGenetlink"
 else
    reply="no"
 fi
-info "Kernel has namespaced generic netlink API: $reply"
+echo "    Kernel has namespaced generic netlink API: $reply"
 reply=
 
 GENLMSG_NEW_VARIANT=""
-genlmsg_new=$(grep -wc genlmsg_new $headersDir/include/net/genetlink.h)
+genlmsg_new=$(grep -wc genlmsg_new ${USE_KERNELHEADERS}/include/net/genetlink.h)
 if [ $genlmsg_new -ne 0 ]; then
    reply="yes"
    GENLMSG_NEW_VARIANT="-DnNIKAL250_kHasGenlmsgNew"
 else
    reply="no"
 fi
-info "Kernel has genlmsg_new: $reply"
+echo "    Kernel has genlmsg_new: $reply"
 reply=
 
 FAMILY_GENLMSG_PUT_VARIANT=""
-family_genlmsg_put=$(awk '/genlmsg_put\(/, /\)/' $headersDir/include/net/genetlink.h | grep -c 'struct genl_family')
+family_genlmsg_put=$(awk '/genlmsg_put\(/, /\)/' ${USE_KERNELHEADERS}/include/net/genetlink.h | grep -c 'struct genl_family')
 if [ $family_genlmsg_put -ne 0 ]; then
    reply="yes"
    FAMILY_GENLMSG_PUT_VARIANT="-DnNIKAL250_kHasFamilyGenlmsgPut"
 else
    reply="no"
 fi
-info "Kernel has family genlmsg_put: $reply"
+echo "    Kernel has family genlmsg_put: $reply"
+reply=
+
+FAMILY_GENLOPS_OPS_MEMBER_VARIANT=""
+family_genlops_ops_member_public=$(awk '/struct genl_family {/,/}/' ${USE_KERNELHEADERS}/include/net/genetlink.h | grep -v private | grep -wc '^[^(),]*struct genl_ops[^(),]*ops[^(),]*;')
+if [ $family_genlops_ops_member_public -eq 1 ]; then
+   reply="yes"
+   FAMILY_GENLOPS_OPS_MEMBER_VARIANT="-DnNIKAL1_kGenlFamilyOpsPublic"
+else
+   reply="no"
+fi
+echo "    Kernel genl_family member 'ops' is public: $reply"
 reply=
 
 FAMILY_GENLOPS_GROUPS_VARIANT=""
-family_genlops_groups=$(grep -wc genl_register_family_with_ops_groups $headersDir/include/net/genetlink.h)
+family_genlops_groups=$(grep -wc genl_register_family_with_ops_groups ${USE_KERNELHEADERS}/include/net/genetlink.h)
 if [ $family_genlops_groups -ne 0 ]; then
    reply="yes"
    FAMILY_GENLOPS_GROUPS_VARIANT="-DnNIKAL1400_kHasFamilyGenlOpsGroups"
 else
    reply="no"
 fi
-info "Kernel has family genl_ops_groups: $reply"
+echo "    Kernel has family genl_ops_groups: $reply"
 reply=
 
 HIGHRES_TIMER_VARIANT=""
-usleep_range=$(grep -wc usleep_range $headersDir/include/linux/delay.h)
+usleep_range=$(grep -wc usleep_range ${USE_KERNELHEADERS}/include/linux/delay.h)
 if [ $usleep_range -ne 0 ]; then
    reply="yes"
    HIGHRES_TIMER_VARIANT="-DnNIKAL100_kHighresTimerAvailable"
 else
    reply="no"
 fi
-info "Kernel has usleep_range(): $reply"
+echo "    Kernel has usleep_range(): $reply"
 reply=
 
 HAS_RS485_SUPPORT=""
-txvr_ops=$(grep -wc txvr_ops $headersDir/include/linux/serial_core.h)
+txvr_ops=$(grep -wc txvr_ops ${USE_KERNELHEADERS}/include/linux/serial_core.h)
 if [ $txvr_ops -ne 0 ]; then
    reply="yes"
    HAS_RS485_SUPPORT="-DnNIKAL100_kHasRS485Support"
 else
    reply="no"
 fi
-info "Kernel has RS-485 serial_core support: $reply"
+echo "    Kernel has RS-485 serial_core support: $reply"
 reply=
 
 HAS_RS485_CONFIG_ON_UART=""
-rs485_config_uart=$(awk '/struct uart_port \{/, /}/' $headersDir/include/linux/serial_core.h | grep -wc rs485_config)
+rs485_config_uart=$(awk '/struct uart_port \{/, /}/' ${USE_KERNELHEADERS}/include/linux/serial_core.h | grep -wc rs485_config)
 if [ $rs485_config_uart -ne 0 ]; then
    reply="yes"
    HAS_RS485_CONFIG_ON_UART="-DnNIKAL1500_kHasRS485ConfigOnUart"
 else
    reply="no"
 fi
-info "Kernel RS-485 config options are per-uart: $reply"
+echo "    Kernel RS-485 config options are per-uart: $reply"
 reply=
 
 UART_SET_WAKE_VARIANT=""
-uart_set_wake=$(grep -wc set_wake $headersDir/include/linux/serial_core.h)
+uart_set_wake=$(grep -wc set_wake ${USE_KERNELHEADERS}/include/linux/serial_core.h)
 if [ $uart_set_wake -ne 0 ]; then
    reply="yes"
    UART_SET_WAKE_VARIANT="-DnNIKAL1400_kHasUartSetWake"
 else
    reply="no"
 fi
-info "Kernel struct uart_ops has set_wake(): $reply"
+echo "    Kernel struct uart_ops has set_wake(): $reply"
 reply=
 
 USE_TTY_PORT_PARAM=""
-tty_port_param=$(grep -wc 'tty_insert_flip_char[[:blank:]]*([[:blank:]]*struct tty_port' $headersDir/include/linux/tty_flip.h)
+tty_port_param=$(grep -wc 'tty_insert_flip_char[[:blank:]]*([[:blank:]]*struct tty_port' ${USE_KERNELHEADERS}/include/linux/tty_flip.h)
 if [ $tty_port_param -ne 0 ]; then
    reply="yes"
    USE_TTY_PORT_PARAM="-DnNIKAL100_kUseTtyPortParam"
 else
    reply="no"
 fi
-info "Kernel uses tty_port instead of tty_struct for tty helper functions: $reply"
+echo "    Kernel uses tty_port instead of tty_struct for tty helper functions: $reply"
 reply=
 
 DEBUG_VARIANT=""
 if [ "$1" = "debug" ]; then
-   info " "
-   info "NI-KAL will be compiled in debug mode."
+   echo "     "
+   echo "NI-KAL will be compiled in debug mode."
    DEBUG_VARIANT="-DnNIKAL100_kDebuggingIsActive"
 fi
 
-# JAH 2013/10/30: NOTE: Going forward, please try to use negative logic when
-# adding preprocessor defines here.  So instead of setting kHasChainedSGL for newer
-# kernels, set kNoChainedSGL for older kernels.  Doing things that way favors
-# newer kernels over old outdated ones, which makes long-term maintenance easier,
-# and will in most cases eliminate the need for us to add a static PP_DEFINE for
-# our Linux RT build (as Linux RT typically uses fairly new kernels).
+KERNEL_VARIANTS=" \
+$MODULE_INIT_AND_CORE_VARIANT \
+$REPARENT_VARIANT \
+$MUNMAP_VARIANT \
+$VMMMAP_VARIANT \
+$VMMUNMAP_VARIANT \
+$BUSNRES_VARIANT \
+$GET_USER_PAGES_VARIANT \
+$OFFSET_VARIANT \
+$USB_ALTSETTINGS_PTR_VARIANT \
+$USB_INTERFACE_REFCOUNT_VARIANT \
+$USB_INTERFACE_CACHE_VARIANT \
+$USB_SET_CONFIGURATION_VARIANT \
+$DEBUG_VARIANT \
+$USB_DEVICE_EP_ARRAY_VARIANT \
+$PAGE_TABLE_LEVEL_VARIANT \
+$USB_TIMEOUT_UNITS_VARIANT \
+$USB_OWNER_VARIANT \
+$MUTEX_VARIANT \
+$CONFIG_VARIANT \
+$IRQ_REGS_VARIANT \
+$WORKQUEUE_VARIANT \
+$STRUCT_TIMER_LIST_VARIANT \
+$IOCTL32_VARIANT \
+$COMPLETION_VARIANT \
+$KZALLOC_VARIANT \
+$GENERATED_DIR_VARIANT \
+$CHAINED_SGL_VARIANT \
+$IOREMAP_WC_VARIANT \
+$CRED_VARIANT \
+$UIDGID_VARIANT \
+$VM_RESERVED_VARIANT \
+$VMOPS_STRUCT_FAULT_VARIANT \
+$UMH_VARIANT \
+$GENLMSG_NEW_VARIANT \
+$NAMESPACED_GENETLINK_VARIANT \
+$FAMILY_GENLMSG_PUT_VARIANT \
+$FAMILY_GENLOPS_GROUPS_VARIANT \
+$FAMILY_GENLOPS_OPS_MEMBER_VARIANT \
+$HIGHRES_TIMER_VARIANT \
+$VERSION_VARIANT \
+$HAS_CREATE_PROC_READ_ENTRY \
+$HAS_RS485_SUPPORT \
+$HAS_RS485_CONFIG_ON_UART \
+$USE_TTY_PORT_PARAM \
+$UART_SET_WAKE_VARIANT \
+$ACPIREMOVE_VARIANT"
 
-# Echo all variables to concatenate the strings
-KERNEL_VARIANTS="$(echo $REPARENT_VARIANT $MUNMAP_VARIANT $VMMMAP_VARIANT \
-$VMMUNMAP_VARIANT $BUSNRES_VARIANT $GET_USER_PAGES_VARIANT $OFFSET_VARIANT \
-$USB_ALTSETTINGS_PTR_VARIANT $USB_INTERFACE_REFCOUNT_VARIANT \
-$USB_INTERFACE_CACHE_VARIANT $USB_SET_CONFIGURATION_VARIANT $DEBUG_VARIANT \
-$USB_DEVICE_EP_ARRAY_VARIANT $PAGE_TABLE_LEVEL_VARIANT \
-$USB_TIMEOUT_UNITS_VARIANT $USB_OWNER_VARIANT \
-$MUTEX_VARIANT $CONFIG_VARIANT $IRQ_REGS_VARIANT $WORKQUEUE_VARIANT \
-$IOCTL32_VARIANT $COMPLETION_VARIANT $KZALLOC_VARIANT $GENERATED_DIR_VARIANT \
-$CHAINED_SGL_VARIANT $IOREMAP_WC_VARIANT $CRED_VARIANT $UIDGID_VARIANT \
-$VM_RESERVED_VARIANT $UMH_VARIANT $GENLMSG_NEW_VARIANT \
-$NAMESPACED_GENETLINK_VARIANT $FAMILY_GENLMSG_PUT_VARIANT \
-$FAMILY_GENLOPS_GROUPS_VARIANT $HIGHRES_TIMER_VARIANT $VERSION_VARIANT \
-$HAS_CREATE_PROC_READ_ENTRY $HAS_RS485_SUPPORT $HAS_RS485_CONFIG_ON_UART \
-$USE_TTY_PORT_PARAM $UART_SET_WAKE_VARIANT $ACPIREMOVE_VARIANT)"
+echo " "
+echo "Writing detected kernel capabilities to Kbuild"
+echo "If the values stored are incorrect they can be changed before running make."
+echo " "
 
-info " "
-info "Storing configuration in Makefile.in"
-info "If the values stored are incorrect they can be changed before running make."
-info " "
-
-dumpTools > ./Makefile.in
-echo "KERNELTARGET=$kernelVersion
-KERNELDIRECTORY=$headersDir
-MODPATH=$niModulePath
-LINUX_VERSION_CODE=$LINUX_VERSION_CODE
-LINUX_260_VERSION_CODE=$LINUX_260_VERSION_CODE
-LINUX_270_VERSION_CODE=$LINUX_270_VERSION_CODE
-MIN_SUPPORTED_VERSION_CODE=$LINUX_260_VERSION_CODE
-MAX_SUPPORTED_VERSION_CODE=$LINUX_270_VERSION_CODE
-KERNEL_VARIANTS=\"$KERNEL_VARIANTS\"" >> ./Makefile.in
+echo "obj-m := nikal.o" > ${__DIR__}/Kbuild
+echo "EXTRA_CFLAGS += -DnNIKAL100_kTargetName=\\\"nikal.ko\\\"" >> ${__DIR__}/Kbuild
+printf "# kernel target-specific settings for kernel with version code 0x%06x\n" ${LINUX_VERSION_CODE} >> ${__DIR__}/Kbuild
+echo "EXTRA_CFLAGS += \\" >> ${__DIR__}/Kbuild
+for variant in ${KERNEL_VARIANTS}; do
+   echo " ${variant} \\" >> ${__DIR__}/Kbuild
+done
+echo "" >> ${__DIR__}/Kbuild

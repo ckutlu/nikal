@@ -68,9 +68,6 @@
 #include <linux/interrupt.h>
 #include <linux/wait.h>
 #include <linux/timer.h>
-//@ckutlu: Kernel 4.15 doesn't define init_timer
-#define init_timer(timer)\
-	init_timer_key((timer), NULL, 0, NULL, NULL)
 #include <linux/time.h>
 #include <linux/pagemap.h>
 #include <linux/kthread.h>
@@ -124,9 +121,6 @@
 #include <net/net_namespace.h>
 #endif
 #include <net/genetlink.h>
-// genetlink.h is completely changed in new versions
-#define GENL_ID_GENERATE 0 // this was a static value in previous versions
-
 #include <linux/sysctl.h>
 
 #include "nikal.h"
@@ -2049,10 +2043,8 @@ nNIKAL100_tBoolean nNIKAL200_isAddressableMemOver4G()
 }
 
 #define NLNIKAL_CMD_SEND     1
-
 static int nlnikal_msg(struct sk_buff *skb, struct genl_info *info) { return 0; }
 
-// @ckutlu: this needs to be included in family structure
 static struct genl_ops nikal_netlink_ops[] =
 {
    {
@@ -3225,7 +3217,7 @@ static void nNIKAL220_vmaClosePhysical(nLinux_vmArea *vma)
       driver->unmapMemory(vma->vm_private_data);
 }
 
-// @ckutlu: Newer kernels(>2.6) vm_operations_struct, fault signature is different
+
 static int nNIKAL190_vmaPageFaultHandler(
 #ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
       nLinux_vmArea *vma,
