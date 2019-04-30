@@ -169,8 +169,8 @@ echo "    Kernel has reparent_to_init(): $reply"
 reply=
 
 MUNMAP_VARIANT=""
-munmap_fourth_acct=$(awk '/do_munmap\(/,/\)/' ${USE_KERNELHEADERS}/include/linux/mm.h | grep -wc "int acct")
-munmap_fourth_uf=$(awk '/do_munmap\(/,/\)/' ${USE_KERNELHEADERS}/include/linux/mm.h | grep -wc "struct list_head")
+munmap_fourth_acct=$(awk '/\wdo_munmap\(/,/\)/' ${USE_KERNELHEADERS}/include/linux/mm.h | grep -wc "int acct")
+munmap_fourth_uf=$(awk '/\wdo_munmap\(/,/\)/' ${USE_KERNELHEADERS}/include/linux/mm.h | grep -wc "struct list_head")
 if [ $munmap_fourth_acct -eq 1 ]; then
    reply="4 (acct)"
    MUNMAP_VARIANT="-DnNIKAL100_kDoMunmapHasAcct"
