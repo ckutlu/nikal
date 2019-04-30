@@ -373,8 +373,16 @@ static void nNIKAL100_dispatchDPC (unsigned long interruptData);
 static nNIKAL100_tBoolean nNIKAL100_isKernelContiguousPointer(const void *ptr);
 static nNIKAL100_tUPtr nNIKAL230_kernelVirtualToPhysical(const void *ptr);
 
-static int nNIKAL190_vmaPageFaultHandler(nLinux_vmFault *vmf);
-static int nNIKAL220_vmaPageFaultHandler(nLinux_vmFault *vmf);
+static int nNIKAL190_vmaPageFaultHandler(
+#ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
+      nLinux_vmArea *vma,
+#endif
+      nLinux_vmFault *vmf);
+static int nNIKAL220_vmaPageFaultHandlerPageList(
+#ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
+      nLinux_vmArea *vma,
+#endif
+      nLinux_vmFault *vmf);
 
 #ifdef nNIKAL160_kIRQRegs
    static irqreturn_t nNIKAL100_dispatchHardwareInterrupt (int irq, void *context,
@@ -755,7 +763,7 @@ static nLinux_vmOperations nNIKAL100_vmaOps =
 
 static nLinux_vmOperations nNIKAL220_vmaOpsPageList = {
    .close = nNIKAL220_vmaClosePageList,
-   .fault = nNIKAL220_vmaPageFaultHandler,
+   .fault = nNIKAL220_vmaPageFaultHandlerPageList,
 };
 
 static nLinux_vmOperations nNIKAL220_vmaOpsPhysical = {
@@ -766,7 +774,7 @@ static const char *nNIVersion_versionStringArray[] =
 {
    "nNIVersion_CompanyName=National Instruments Corporation",
 
-   "nNIVersion_LegalCopyright=Copyright (c) 2002-2017 National Instruments Corporation. "
+   "nNIVersion_LegalCopyright=Copyright (c) 2002-2018 National Instruments Corporation. "
    "All Rights Reserved. Any and all use of the copyrighted materials is subject to the "
    "then current terms and conditions of the applicable license agreement, "
    "which can be found at <http://www.ni.com/linux/>.",
@@ -776,13 +784,13 @@ static const char *nNIVersion_versionStringArray[] =
    "nNIVersion_FileDescription=NI-KAL Driver",
 
    #ifdef nNIKAL100_kDebuggingIsActive
-      "nNIVersion_ProductVersion=17.0.0f0 debug build",
-      "nNIVersion_FileVersion=17.0.0f0 debug build",
-      "nNIVersion_InternalName=NIKAL 17.0.0f0 debug build",
+      "nNIVersion_ProductVersion=18.2.0f0 debug build",
+      "nNIVersion_FileVersion=18.2.0f0 debug build",
+      "nNIVersion_InternalName=NIKAL 18.2.0f0 debug build",
    #else
-      "nNIVersion_ProductVersion=17.0.0f0",
-      "nNIVersion_FileVersion=17.0.0f0",
-      "nNIVersion_InternalName=NIKAL 17.0.0f0",
+      "nNIVersion_ProductVersion=18.2.0f0",
+      "nNIVersion_FileVersion=18.2.0f0",
+      "nNIVersion_InternalName=NIKAL 18.2.0f0",
    #endif
 
    NULL
@@ -802,6 +810,7 @@ static nNIKAL200_tDeviceInterface nNIKAL200_sPALPseudoDeviceInterface = {
    .name           = "nipalk"
 };
 
+static DEFINE_SPINLOCK(nNIKAL1_dummySpinLock);
 
 
 
@@ -812,7 +821,8 @@ static nNIKAL200_tDeviceInterface nNIKAL200_sPALPseudoDeviceInterface = {
 
 
 
-inline nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_statusSelect(nNIKAL100_tStatus oldStatus, nNIKAL100_tStatus newStatus)
+
+static inline nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_statusSelect(nNIKAL100_tStatus oldStatus, nNIKAL100_tStatus newStatus)
 {
    if (nNIKAL100_statusIsFatal(oldStatus))
       return oldStatus;
@@ -823,7 +833,7 @@ inline nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_statusSelect(nNIKAL100_tStatus o
    return newStatus;
 }
 
-inline nNIKAL100_tStatus nNIKAL100_convertLinuxToKALStatus(int linuxStatus)
+static inline nNIKAL100_tStatus nNIKAL100_convertLinuxToKALStatus(int linuxStatus)
 {
    switch(linuxStatus)
    {
@@ -891,7 +901,7 @@ inline nNIKAL100_tStatus nNIKAL100_convertLinuxToKALStatus(int linuxStatus)
    }
 }
 
-inline int nNIKAL100_convertKALToLinuxStatus(nNIKAL100_tStatus kalStatus)
+static inline int nNIKAL100_convertKALToLinuxStatus(nNIKAL100_tStatus kalStatus)
 {
    switch(kalStatus)
    {
@@ -942,7 +952,6 @@ static inline long nNIKAL1600_currentTaskGetUserPages(
 
 static nNIKAL100_tStatus nNIKAL1400_createProcess(const char **argv, int wait, int *exitCode)
 {
-   char path[128];
    char *envp[] = { "HOME=/",
                     "PATH=/usr/local/natinst/nikal/bin:/sbin:/usr/sbin:/usr/bin:/bin:/usr/local/sbin",
                     NULL
@@ -968,13 +977,10 @@ static nNIKAL100_tStatus nNIKAL1400_createProcess(const char **argv, int wait, i
    }
 #endif
 
-   snprintf(path, sizeof(path), "/usr/local/sbin/%s", argv[0]);
-   argv[0] = path;
-
    ret = call_usermodehelper((char*)argv[0], (char**)argv, envp, wait);
    if (ret < 0)
    {
-      KAL_DPRINT("nNIKAL1400_createProcess(%s, ...) failed: %d\n", path, ret);
+      KAL_DPRINT("nNIKAL1400_createProcess(%s, ...) failed: %d\n", argv[0], ret);
       return nNIKAL100_kStatusOSFault;
    }
    if (exitCode)
@@ -993,7 +999,7 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL1400_createProcessAndWait(const char **argv
 }
 
 
-static char nNIKAL200_sNotificationScript[] = "nidevnode";
+static char nNIKAL200_sNotificationScript[] = "/usr/sbin/nidevnode";
 
 nNIKAL100_cc void nNIKAL240_notifyUserspaceAddEvent(void *interface)
 {
@@ -2055,15 +2061,18 @@ static struct genl_ops nikal_netlink_ops[] =
    },
 };
 
-
 static struct genl_family nikal_netlink_family =
 {
+#ifdef GENL_ID_GENERATE
    .id = GENL_ID_GENERATE,
-   .name = "nlnikal",
+#endif
+   .name  = "nlnikal",
+#ifdef nNIKAL1_kGenlFamilyOpsPublic
+   .ops   = nikal_netlink_ops,
+   .n_ops = ARRAY_SIZE(nikal_netlink_ops),
+#endif
    .version = 1,
-   .maxattr = 1,
-   .ops = nikal_netlink_ops,
-   .n_ops=1
+   .maxattr = 1
 };
 
 
@@ -2087,10 +2096,12 @@ static int __init nNIKAL100_initDriver(void)
    kref_init(&(nNIKAL200_sPALPseudoDevice.kref));
    kref_init(&(nNIKAL200_sPALPseudoDeviceInterface.kref));
 
-#ifdef nNIKAL1400_kHasFamilyGenlOpsGroups
+#if defined(nNIKAL1_kGenlFamilyOpsPublic)
    if ((status = genl_register_family(&nikal_netlink_family))) return status;
+#elif defined(nNIKAL1400_kHasFamilyGenlOpsGroups)
+   if ((status = genl_register_family_with_ops(&nikal_netlink_family, nikal_netlink_ops))) return status;
 #else
-   if ((status = genl_register_family(&nikal_netlink_family))) return status;
+   if ((status = genl_register_family_with_ops(&nikal_netlink_family, nikal_netlink_ops, 1))) return status;
 #endif
 
 
@@ -3215,7 +3226,11 @@ static void nNIKAL220_vmaClosePhysical(nLinux_vmArea *vma)
 }
 
 // @ckutlu: Newer kernels(>2.6) vm_operations_struct, fault signature is different
-static int nNIKAL190_vmaPageFaultHandler(nLinux_vmFault *vmf)
+static int nNIKAL190_vmaPageFaultHandler(
+#ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
+      nLinux_vmArea *vma,
+#endif
+      nLinux_vmFault *vmf)
 {
    nNIKAL100_tUPtr addr = vmf->pgoff << PAGE_SHIFT;
    vmf->page = (nLinux_physicalPage*)nNIKAL100_incrementPageRefcount((void*)addr);
@@ -3223,10 +3238,17 @@ static int nNIKAL190_vmaPageFaultHandler(nLinux_vmFault *vmf)
 }
 
 
-static int nNIKAL220_vmaPageFaultHandler(nLinux_vmFault *vmf)
+static int nNIKAL220_vmaPageFaultHandlerPageList(
+#ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
+      nLinux_vmArea *vma,
+#endif
+      nLinux_vmFault *vmf)
 {
-   // @ckutlu: Newer kernels vma is in vmf
+#ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
+   nNIKAL220_tUserMemMapPrivateData *_vma = vma->vm_private_data;
+#else
    nNIKAL220_tUserMemMapPrivateData *_vma = vmf->vma->vm_private_data;
+#endif
    nNIKAL220_tPageList *list = _vma->list;
 
    KAL_ASSERT(vmf->pgoff < list->num_pages);
@@ -3634,13 +3656,11 @@ static void nNIKAL100_unmapUserKIOBuf(void *iobuf)
 
 static inline pmd_t *nNIKAL120_getPageTablePMDEntry(nLinux_mm* mm, const void *address)
 {
-// @ckutlu: Added five level pagetable codepath
    pgd_t *pgd;
-#ifdef nNIKAL100_kFourLevelPageTable
-   pud_t *pud;
-#endif
-#ifdef nNIKAL100_kFiveLevelPageTable
+#if defined(nNIKAL1_kFiveLevelPageTable)
    p4d_t *p4d;
+   pud_t *pud;
+#elif defined(nNIKAL100_kFourLevelPageTable)
    pud_t *pud;
 #endif
    pmd_t *pmd;
@@ -3648,11 +3668,11 @@ static inline pmd_t *nNIKAL120_getPageTablePMDEntry(nLinux_mm* mm, const void *a
    nNIKAL100_compileTimeAssert(sizeof(pte_t) <= 8, "pte_t is larger then 128 bits!\n");
 
    pgd = pgd_offset(mm, (nNIKAL100_tUPtr)address);
-#ifdef nNIKAL100_kFiveLevelPageTable
+#if defined(nNIKAL1_kFiveLevelPageTable)
    p4d = p4d_offset(pgd, (nNIKAL100_tUPtr)address);
    pud = pud_offset(p4d, (nNIKAL100_tUPtr)address);
    pmd = pmd_offset(pud, (nNIKAL100_tUPtr)address);
-#elif nNIKAL100_kFourLevelPageTable
+#elif defined(nNIKAL100_kFourLevelPageTable)
    pud = pud_offset(pgd, (nNIKAL100_tUPtr)address);
    pmd = pmd_offset(pud, (nNIKAL100_tUPtr)address);
 #else
@@ -3737,10 +3757,10 @@ static nNIKAL100_tUPtr nNIKAL100_doMMap(void *file, nNIKAL100_tUPtr address,
 
 static inline int nNIKAL240_do_munmap(struct mm_struct *mm, unsigned long addr, size_t len)
 {
-#ifdef nNIKAL100_kFourParameterDoMunmap
-   return do_munmap(mm, addr, len, 1);
-#elif nNIKAL100_kFiveParameterDoMunmap //@ckutlu
+#if defined(nNIKAL1_kDoMunmapHasUf)
    return do_munmap(mm, addr, len, NULL);
+#elif defined(nNIKAL100_kDoMunmapHasAcct)
+   return do_munmap(mm, addr, len, 1);
 #else
    return do_munmap(mm, addr, len);
 #endif
@@ -3943,6 +3963,14 @@ nNIKAL100_cc void nNIKAL250_sleepTimeout (nNIKAL100_tU32 timeToSleepInMicrosecon
 nNIKAL100_cc void nNIKAL200_yield (void)
 {
    schedule();
+}
+
+
+nNIKAL100_cc nNIKAL100_tU64 nNIKAL1_getMonotonicCounter (void)
+{
+   struct timespec ts;
+   getrawmonotonic(&ts);
+   return timespec_to_ns(&ts);
 }
 
 
@@ -4327,10 +4355,11 @@ nNIKAL100_cc void * nNIKAL100_createSpinLock( void )
 {
    nLinux_spinlock *_spinlock;  
 
-   if(( _spinlock = nNIKAL100_malloc( sizeof( nLinux_spinlock ) )) != NULL )
-   {
-      
-      spin_lock_init( _spinlock );
+   
+   if( sizeof( nLinux_spinlock ) == 0) {
+      _spinlock = &nNIKAL1_dummySpinLock;
+   } else if(( _spinlock = nNIKAL100_malloc( sizeof( nLinux_spinlock ) )) != NULL ) {
+         spin_lock_init( _spinlock );
    }
 
    
@@ -4351,7 +4380,8 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_destroySpinLock( void *spinlock )
       return nNIKAL100_kStatusResourceBusy;
    }
 
-   nNIKAL100_free( _spinlock );
+   if( _spinlock != &nNIKAL1_dummySpinLock)
+      nNIKAL100_free( _spinlock );
 
    
    return nNIKAL100_kStatusSuccess;
@@ -4439,13 +4469,36 @@ nNIKAL100_cc void nNIKAL100_releaseSingleUseEvent( void *event )
 }
 
 
-static void nNIKAL100_timeoutCallback( struct timer_list *t )
+
+#if defined(nNIKAL1_kTimerHasDataMember)
+
+static void nNIKAL100_timeoutCallback( unsigned long package )
 {
    nNIKAL100_tTimerCallbackSpec *_timerCallbackPkg =
-      from_timer(_timerCallbackPkg, t, timer);
+      (nNIKAL100_tTimerCallbackSpec *)package;
 
    _timerCallbackPkg->func( _timerCallbackPkg->context );
 }
+
+#else 
+
+struct nNIKAL1_timerCallbackData {
+   nLinux_timerList timer;
+   nNIKAL100_tTimerCallbackSpec *pkg;
+};
+
+
+static void nNIKAL1_timerListTimeoutCallback( struct timer_list *t )
+{
+   
+   struct nNIKAL1_timerCallbackData *data = from_timer(data, t, timer);
+   
+   nNIKAL100_tTimerCallbackSpec *_timerCallbackPkg = data->pkg;
+
+   _timerCallbackPkg->func( _timerCallbackPkg->context );
+}
+
+#endif 
 
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_waitForSingleUseEvent( void *event )
@@ -4556,21 +4609,36 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_waitForSingleUseEventTimeout
 )
 {
    nNIKAL100_tStatus retVal = nNIKAL100_kStatusSuccess;
+#if defined(nNIKAL1_kTimerHasDataMember)
+   nLinux_timerList _timer;
+   nLinux_timerList *timer = &_timer;
+#else
+   struct nNIKAL1_timerCallbackData _timerData;
+   nLinux_timerList *timer = &_timerData.timer;
+#endif
 
    nNIKAL120_mCheckStackUsage;
 
+   
+#if defined(nNIKAL1_kTimerHasDataMember)
+   init_timer( timer );
+   timer->data     = (unsigned long) timerCallbackPkg;
+   timer->function = nNIKAL100_timeoutCallback;
+#else
+   timer_setup( timer, nNIKAL1_timerListTimeoutCallback, 0 );
+   _timerData.pkg  = timerCallbackPkg;
+#endif
+
+   timer->expires  = calculateTimerExpire( timeout );
    nNIKAL100_compileTimeAssert(sizeof(nNIKAL100_tTimerCallbackSpec*)==sizeof(unsigned long), "Oops, resizing nNIKAL100_tTimerCallbackSpec* into unsigned long!");
 
-   //@ckutlu: changed these for the new kernel timer system
-   timer_setup(&timerCallbackPkg->timer, nNIKAL100_timeoutCallback, 0);
-   mod_timer(&timerCallbackPkg->timer, calculateTimerExpire( timeout ));
    
-   add_timer( &timerCallbackPkg->timer );
+   add_timer( timer );
 
    
    retVal = nNIKAL100_waitForSingleUseEvent( event );
 
-   del_timer_sync( &timerCallbackPkg->timer );
+   del_timer_sync( timer );
 
    return retVal;
 }
@@ -4583,20 +4651,35 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_waitForSingleUseEventTimeoutInterruptib
    nNIKAL100_tTimerCallbackSpec *timerCallbackPkg
 )
 {
-   nLinux_timerList timer;
+#if defined(nNIKAL1_kTimerHasDataMember)
+   nLinux_timerList _timer;
+   nLinux_timerList *timer = &_timer;
+#else
+   struct nNIKAL1_timerCallbackData _timerData;
+   nLinux_timerList *timer = &_timerData.timer;
+#endif
    nNIKAL100_tStatus retVal = nNIKAL100_kStatusSuccess;
 
    nNIKAL120_mCheckStackUsage;
 
-   // @ckutlu: changed these for the new kernel timers
-   timer_setup(&timerCallbackPkg->timer, nNIKAL100_timeoutCallback, 0); 
-   mod_timer(&timerCallbackPkg->timer, calculateTimerExpire(timeout));
    
-   add_timer( &timer );
+#if defined(nNIKAL1_kTimerHasDataMember)
+   init_timer( timer );
+   timer->data     = (unsigned long) timerCallbackPkg;
+   timer->function = nNIKAL100_timeoutCallback;
+#else
+   timer_setup( timer, nNIKAL1_timerListTimeoutCallback, 0 );
+   _timerData.pkg  = timerCallbackPkg;
+#endif
+
+   timer->expires  = calculateTimerExpire( timeout );
+
+   
+   add_timer( timer );
 
    retVal = nNIKAL100_waitForSingleUseEventInterruptible(event);
 
-   del_timer_sync( &timer );
+   del_timer_sync( timer );
 
    return retVal;  
 }
@@ -6455,7 +6538,7 @@ nNIKAL100_cc void nNIKAL100_scheduleDPC (void *_dpc, void *context)
    
 #ifdef CONFIG_PREEMPT_RT_FULL
    
-   nNIKAL100_dispatchDPC(&dpc->callback);
+   nNIKAL100_dispatchDPC((unsigned long) &dpc->callback);
 #else
    tasklet_schedule(&dpc->tasklet);
 #endif
@@ -6480,10 +6563,27 @@ nNIKAL100_cc void __iomem * nNIKAL230_mapPhysicalToKernel (nNIKAL100_tU64 physic
 {
 #ifdef nNIKAL230_kHas_ioremap_wc
    if (flags & nNIKAL230_kPhysMemFlagWriteCombined)
+   {
       return ioremap_wc(physicalAddress, size);
-   else
+   }
 #endif
-      return ioremap(physicalAddress, size);
+
+   
+   if (flags & nNIKAL1750_kPhysMemFlagCache)
+   {
+#if defined(ioremap_cache)
+      return ioremap_cache(physicalAddress, size);
+#elif defined(ioremap_cached)
+      return ioremap_cached(physicalAddress, size);
+#elif (defined(__i386__) || defined(__x86_64__) || defined(__arm64__) || defined(__mips__))
+      return ioremap_cache(physicalAddress, size);
+#elif defined(__arm__)
+      return ioremap_cached(physicalAddress, size);
+#else
+#error "Unsupported combination"
+#endif
+   }
+   return ioremap(physicalAddress, size);
 }
 
 nNIKAL100_cc void nNIKAL230_unmapPhysicalFromKernel (void __iomem * memoryArea, unsigned long flags)
@@ -6878,7 +6978,9 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_pageUnlockUserPointer(nNIKAL100_tMemPag
    down(&nNIKAL100_sPageLockOperationSema);
 
    
+#if !defined(CONFIG_CPU_R4K_CACHE_TLB)
    flush_cache_all();
+#endif
 
    vunmap(pageLockToken->pageLockedPointer);
    nNIKAL100_unsetVMANoCopy(pageLockToken);
@@ -7220,6 +7322,32 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL230_tUserMemMap_mapPhysicalAddress(nNIKAL22
 }
 
 
+#if defined(nNIKAL100_kDebuggingIsActive) && defined(__x86_64__)
+static int addr_in_module(void *addr, struct module *mod) {
+   void *mod_init_base = NULL;
+   void *mod_init_upper = NULL;
+   void *mod_core_base = NULL;
+   void *mod_core_upper = NULL;
+
+#if defined(nNIKAL100_kStructModuleHasInitAndCoreLayouts)
+   mod_init_base = mod->init_layout.base;
+   mod_init_upper = mod->init_layout.base + mod->init_layout.size;
+   mod_core_base = mod->core_layout.base;
+   mod_core_upper = mod->core_layout.base + mod->core_layout.size;
+#else
+   mod_init_base = mod->module_init;
+   mod_init_upper = mod->module_init + mod->init_text_size;
+   mod_core_base = mod->module_core;
+   mod_core_upper = mod->module_core + mod->core_text_size;
+#endif
+   return ((addr >= mod_init_base &&
+            addr <  mod_init_upper) ||
+           (addr >= mod_core_base &&
+            addr <  mod_core_upper));
+}
+#endif 
+
+
 nNIKAL100_cc nNIKAL100_tU32 nNIKAL170_getCallStack(nNIKAL100_tU32 callingLevel, nNIKAL100_tU32 startLevel, void **retAddrBuffer)
 {
 #if defined(nNIKAL100_kDebuggingIsActive) && defined(__x86_64__)
@@ -7243,10 +7371,7 @@ nNIKAL100_cc nNIKAL100_tU32 nNIKAL170_getCallStack(nNIKAL100_tU32 callingLevel, 
    for (i = j = 0; j < callingLevel && currentAddr < bottomOfStack; ++currentAddr)
    {
       
-      if ((*currentAddr >= THIS_MODULE->module_init &&
-           *currentAddr < THIS_MODULE->module_init + THIS_MODULE->init_text_size) ||
-          (*currentAddr >= THIS_MODULE->module_core &&
-           *currentAddr < THIS_MODULE->module_core + THIS_MODULE->core_text_size))
+      if (addr_in_module(*currentAddr, THIS_MODULE))
       {
          if (i >= startLevel)
             retAddrBuffer[j++]=*currentAddr;
@@ -7260,10 +7385,7 @@ nNIKAL100_cc nNIKAL100_tU32 nNIKAL170_getCallStack(nNIKAL100_tU32 callingLevel, 
          if (module->mkobj.mod == module)
          {
             
-            if ((*currentAddr >= module->module_init &&
-                 *currentAddr < module->module_init + module->init_text_size) ||
-                (*currentAddr >= module->module_core &&
-                 *currentAddr < module->module_core + module->core_text_size))
+            if (addr_in_module(*currentAddr, module))
             {
                if (i >= startLevel)
                   retAddrBuffer[j++]=*currentAddr;
@@ -8022,6 +8144,7 @@ nNIKAL100_mExportSymbol(nNIKAL100_createUSBDeviceIDTable);
 nNIKAL100_mExportSymbol(nNIKAL100_malloc);
 nNIKAL100_mExportSymbol(nNIKAL100_malloc32BitPhysicalContiguous);
 nNIKAL100_mExportSymbol(nNIKAL100_registerDriver);
+nNIKAL100_mExportSymbol(nNIKAL1_getMonotonicCounter);
 nNIKAL100_mExportSymbol(nNIKAL100_getTimerCount);
 nNIKAL100_mExportSymbol(nNIKAL110_getTimerCount);
 nNIKAL100_mExportSymbol(nNIKAL100_pciConfigRead16);
