@@ -5,10 +5,10 @@ module 'nikal'.  Since NI isn't updating the linux installer, I patched the
 sources of nikal kernel module to work with 4.20.x.
 
 # (DEPRECATED)
-Note that there is a better way to install up-to-date NI drivers.  This page will be updated soon.
+Note that there is a better way to install up-to-date NI drivers starting from NI-VISA-18.0.  This page will be updated soon.
 
 
-# How to install NI-VISA?
+# How to install NI-VISA 17.0?
 1. Download the latest NI-VISA drivers *that are supported for CentOS/Red Hat
    systems*.  The file name is NI-VISA-17.0.0.iso.
 
