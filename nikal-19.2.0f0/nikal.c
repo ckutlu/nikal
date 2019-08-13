@@ -80,9 +80,6 @@
    #include <linux/completion.h>
 #endif
 
-// @ckutlu: Added
-#include <linux/mman.h>
-// @ckutlu: MAP_SHARED is not defined in asm/mman.h anymore
 #include <asm/mman.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -368,12 +365,12 @@ static void nNIKAL100_dispatchDPC (unsigned long interruptData);
 static nNIKAL100_tBoolean nNIKAL100_isKernelContiguousPointer(const void *ptr);
 static nNIKAL100_tUPtr nNIKAL230_kernelVirtualToPhysical(const void *ptr);
 
-static unsigned int nNIKAL190_vmaPageFaultHandler(
+static int nNIKAL190_vmaPageFaultHandler(
 #ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
       nLinux_vmArea *vma,
 #endif
       nLinux_vmFault *vmf);
-static unsigned int nNIKAL220_vmaPageFaultHandlerPageList(
+static int nNIKAL220_vmaPageFaultHandlerPageList(
 #ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
       nLinux_vmArea *vma,
 #endif
@@ -3210,7 +3207,7 @@ static void nNIKAL220_vmaClosePhysical(nLinux_vmArea *vma)
 }
 
 
-static unsigned int nNIKAL190_vmaPageFaultHandler(
+static int nNIKAL190_vmaPageFaultHandler(
 #ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
       nLinux_vmArea *vma,
 #endif
@@ -3222,7 +3219,7 @@ static unsigned int nNIKAL190_vmaPageFaultHandler(
 }
 
 
-static unsigned int nNIKAL220_vmaPageFaultHandlerPageList(
+static int nNIKAL220_vmaPageFaultHandlerPageList(
 #ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
       nLinux_vmArea *vma,
 #endif
