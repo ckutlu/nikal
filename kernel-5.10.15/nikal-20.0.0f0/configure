@@ -119,31 +119,10 @@ fi
 echo ""
 
 ### Determining kernel version code ###
-if [ -e ${USE_KERNELDIR}/include/generated/uapi/linux/version.h ]; then
-   LINUX_VERSION_CODE=$(cat ${USE_KERNELDIR}/include/generated/uapi/linux/version.h | grep LINUX_VERSION_CODE | cut -d " " -f 3)
-   VERSION_DIR=${USE_KERNELDIR}/include/generated/uapi/linux/version.h
-elif [ -e ${USE_KERNELHEADERS}/include/linux/version.h ]; then
-   LINUX_VERSION_CODE=$(cat ${USE_KERNELHEADERS}/include/linux/version.h | grep LINUX_VERSION_CODE | cut -d " " -f 3)
-   VERSION_DIR=${USE_KERNELHEADERS}/include/linux/version.h
-elif [ -e ${USE_KERNELHEADERS}/Makefile ]; then
-   LINUX_VERSION=$(cat ${USE_KERNELHEADERS}/Makefile | grep "^VERSION" | sed 's/.*= *//')
-   LINUX_PATCHLEVEL=$(cat ${USE_KERNELHEADERS}/Makefile | grep "^PATCHLEVEL" | sed 's/.*= *//')
-   LINUX_SUBLEVEL=$(cat ${USE_KERNELHEADERS}/Makefile | grep "^SUBLEVEL" | sed 's/.*= *//')
-   LINUX_VERSION_CODE=$(expr ${LINUX_VERSION} * 65536 + ${LINUX_PATCHLEVEL} * 256 + ${LINUX_SUBLEVEL} )
-fi
+LINUX_VERSION_CODE=$(cat ${USE_KERNELDIR}/include/generated/uapi/linux/version.h | grep LINUX_VERSION_CODE | cut -d " " -f 3)
 
 ### Determining kernel variant ###
 echo "Testing kernel capabilities and interfaces:"
-reply=
-
-VERSION_VARIANT=""
-if [ "$VERSION_DIR" = "${USE_KERNELDIR}/include/generated/uapi/linux/version.h" ]; then
-   reply="yes"
-   VERSION_VARIANT="-DnNIKAL250_kUAPIVersion"
-else
-   reply="no"
-fi
-echo "    Kernel has version.h in include/generated/uapi/: $reply"
 reply=
 
 MODULE_INIT_AND_CORE_VARIANT=""
@@ -168,37 +147,15 @@ fi
 echo "    Number of arguments for do_munmap(): $reply"
 reply=
 
-VMMMAP_VARIANT=""
-vm_mmap=$(grep -wc vm_mmap ${USE_KERNELHEADERS}/include/linux/mm.h)
-if [ $vm_mmap -ne 0 ]; then
+VMFAULTTYPE_VARIANT=""
+vm_fault_t=$(grep -wc vm_fault_t ${USE_KERNELHEADERS}/include/linux/mm_types.h)
+if [ $vm_fault_t -ne 0 ]; then
    reply="yes"
-   VMMMAP_VARIANT="-DnNIKAL240_kHasVmMmap"
+   VMFAULTTYPE_VARIANT="-DnNIKAL1_kHasVmFaultType"
 else
    reply="no"
 fi
-echo "    Kernel has vm_mmap(): $reply"
-reply=
-
-VMMUNMAP_VARIANT=""
-vm_munmap=$(grep -wc vm_munmap ${USE_KERNELHEADERS}/include/linux/mm.h)
-if [ $vm_munmap -ne 0 ]; then
-   reply="yes"
-   VMMUNMAP_VARIANT="-DnNIKAL240_kHasVmMunmap"
-else
-   reply="no"
-fi
-echo "    Kernel has vm_munmap(): $reply"
-reply=
-
-VM_RESERVED_VARIANT=""
-vm_rsvd=$(grep -wc VM_RESERVED ${USE_KERNELHEADERS}/include/linux/mm.h)
-if [ $vm_rsvd -ne 0 ]; then
-   reply="yes"
-   VM_RESERVED_VARIANT="-DnNIKAL240_kHasVM_RESERVED"
-else
-   reply="no"
-fi
-echo "    Kernel has VM_RESERVED: $reply"
+echo "    Kernel has vm_fault_t: $reply"
 reply=
 
 VMOPS_STRUCT_FAULT_VARIANT=""
@@ -225,17 +182,6 @@ else
 fi
 echo "    Kernel get_user_pages() requires: $reply"
 
-BUSNRES_VARIANT=""
-busnres=$(grep 'struct[[:space:]]\+resource' ${USE_KERNELHEADERS}/include/linux/pci.h | grep -wc 'busn_res')
-if [ $busnres -ne 0 ]; then
-   reply="yes"
-   BUSNRES_VARIANT="-DnNIKAL240_kHasPciBusnRes"
-else
-   reply="no"
-fi
-echo "    Kernel struct pci_dev has busn_res member: $reply"
-reply=
-
 ACPIREMOVE_VARIANT=""
 acpiremovetype=$(grep 'typedef.\+acpi_op_remove' ${USE_KERNELHEADERS}/include/acpi/acpi_bus.h | grep -wc 'type')
 if [ "$acpiremovetype" -ne 0 ]; then
@@ -245,26 +191,6 @@ else
    reply="no"
 fi
 echo "    Kernel acpi_op_remove callback has additional \"type\" parameter: $reply"
-reply=
-
-OFFSET_VARIANT=""
-pte_offset_kernel_path=""
-if [ -d ${USE_KERNELHEADERS}/arch/x86/include/asm ]; then
-   pte_offset_kernel_path="${USE_KERNELHEADERS}/arch/x86/include/asm/*"
-elif [ -d ${USE_KERNELHEADERS}/arch/arm/include/asm ]; then
-   pte_offset_kernel_path="${USE_KERNELHEADERS}/arch/arm/include/asm/*"
-fi
-if [ -d ${USE_KERNELHEADERS}/include/asm ]; then
-   pte_offset_kernel_path="$pte_offset_kernel_path ${USE_KERNELHEADERS}/include/asm/*"
-fi
-pte_offset_kernel=$(grep pte_offset_kernel $pte_offset_kernel_path 2>/dev/null | grep -wc pte_offset_kernel)
-if [ $pte_offset_kernel -ne 0 ]; then
-   reply="pte_offset_kernel()"
-   OFFSET_VARIANT="-DnNIKAL100_kPTEOffsetKernel"
-else
-   reply="pte_offset()"
-fi
-echo "    pte_offset function: $reply"
 reply=
 
 PAGE_TABLE_LEVEL_VARIANT=""
@@ -286,126 +212,6 @@ fi
 echo "    Levels in page table: $reply"
 reply=
 
-KZALLOC_VARIANT=""
-kzalloc=$(grep -wc kzalloc ${USE_KERNELHEADERS}/include/linux/slab.h)
-if [ $kzalloc -ne 0 ]; then
-   reply="yes"
-   KZALLOC_VARIANT="-DnNIKAL200_kHasKzalloc"
-else
-   reply="no"
-fi
-echo "    Kernel has kzalloc: $reply"
-reply=
-
-CHAINED_SGL_VARIANT=""
-chained_sgl=$(grep -wc sg_alloc_table ${USE_KERNELHEADERS}/include/linux/scatterlist.h)
-if [ $chained_sgl -ne 0 ]; then
-   reply="limited"
-   CHAINED_SGL_VARIANT="-DnNIKAL220_kHasSGLPageAPI"
-else
-   reply="no"
-fi
-echo "    Kernel has chained SGL support: $reply"
-reply=
-
-USB_ALTSETTINGS_PTR_VARIANT=""
-cur_altsetting=$(grep -wc cur_altsetting ${USE_KERNELHEADERS}/include/linux/usb.h)
-if [ $cur_altsetting -ne 0 ]; then
-   reply="cur_altsetting"
-   USB_ALTSETTINGS_PTR_VARIANT="-DnNIKAL100_kCurrentAlternateSetting"
-else
-   reply="act_altsetting"
-fi
-echo "    USB altsetting name: $reply"
-reply=
-
-USB_INTERFACE_REFCOUNT_VARIANT=""
-usb_get_intf=$(grep -wc usb_get_intf ${USE_KERNELHEADERS}/include/linux/usb.h)
-if [ $usb_get_intf -ne 0 ]; then
-   reply="yes"
-   USB_INTERFACE_REFCOUNT_VARIANT="-DnNIKAL100_kUSBReferenceCountFunctions"
-else
-   reply="no"
-fi
-echo "    Kernel has usb_get_intf(): $reply"
-reply=
-
-USB_INTERFACE_CACHE_VARIANT=""
-usb_interface_cache=$(awk '/struct usb_host_config \{/, /}/' ${USE_KERNELHEADERS}/include/linux/usb.h | grep -wc intf_cache)
-if [ $usb_interface_cache -ne 0 ]; then
-   reply="yes"
-   USB_INTERFACE_CACHE_VARIANT="-DnNIKAL100_kUSBInterfaceCacheMember"
-else
-   reply="no"
-fi
-echo "    Kernel has intf_cache member in usb_host_config: $reply"
-reply=
-
-USB_DEVICE_EP_ARRAY_VARIANT=""
-usb_device_ep_array=$(awk '/struct usb_device \{/, /}/' ${USE_KERNELHEADERS}/include/linux/usb.h | grep -wc ep_out)
-if [ $usb_device_ep_array -ne 0 ]; then
-   reply="yes"
-   USB_DEVICE_EP_ARRAY_VARIANT="-DnNIKAL100_kUSBDeviceEndpointArray"
-else
-   reply="no"
-fi
-echo "    Kernel has ep[] members in usb_device: $reply"
-reply=
-
-USB_SET_CONFIGURATION_VARIANT=""
-usb_set_configuration=$(grep -wc usb_set_configuration ${USE_KERNELHEADERS}/include/linux/usb.h)
-if [ $usb_set_configuration -ne 0 ]; then
-   reply="yes"
-   USB_SET_CONFIGURATION_VARIANT="-DnNIKAL100_kUSBSetConfiguration"
-else
-   reply="no"
-fi
-echo "    Kernel exports usb_set_configuration(): $reply"
-reply=
-
-USB_TIMEOUT_UNITS_VARIANT=""
-usb_timeout_units=$(grep -B 7 USB_CTRL_GET_TIMEOUT ${USE_KERNELHEADERS}/include/linux/usb.h | grep -wc milliseconds)
-if [ $usb_timeout_units -ne 0 ]; then
-   reply="msec"
-   USB_TIMEOUT_UNITS_VARIANT="-DnNIKAL100_kUSBmsecTimeout"
-else
-   reply="sec"
-fi
-echo "    Units of USB_CTRL_GET_TIMEOUT: $reply"
-reply=
-
-MUTEX_VARIANT=""
-if [ -e ${USE_KERNELHEADERS}/include/linux/mutex.h ]; then
-   reply="yes"
-   MUTEX_VARIANT="-DnNIKAL150_kMutexMethod"
-else
-   reply="no"
-fi
-echo "    Kernel has mutex method: $reply"
-reply=
-
-COMPLETION_VARIANT=""
-completion_interruptible=$(grep -wc wait_for_completion_interruptible ${USE_KERNELHEADERS}/include/linux/completion.h)
-if [ $completion_interruptible -ne 0 ]; then
-   reply="yes"
-   COMPLETION_VARIANT="-DnNIKAL200_kCompletion"
-else
-   reply="no"
-fi
-echo "    Kernel has wait_for_completion_interruptible: $reply"
-reply=
-
-WORKQUEUE_VARIANT=""
-work_struct_timer=$(awk '/struct work_struct \{/, /}/' ${USE_KERNELHEADERS}/include/linux/workqueue.h | grep -wc timer)
-if [ $work_struct_timer -eq 0 ]; then
-   reply="yes"
-   WORKQUEUE_VARIANT="-DnNIKAL160_kWorkqueueNonDelay"
-else
-   reply="no"
-fi
-echo "    Kernel has work_struct and delayed_work: $reply"
-reply=
-
 STRUCT_TIMER_LIST_VARIANT=""
 struct_timer_list_data=$(awk '/struct timer_list \{/, /}/' ${USE_KERNELHEADERS}/include/linux/timer.h | grep -wc 'unsigned long[[:space:]]*data')
 if [ $struct_timer_list_data -eq 0 ]; then
@@ -417,92 +223,6 @@ else
    reply="error - incompatible structure detected"
 fi
 echo "    Kernel timer_list has data member: $reply"
-reply=
-
-IOREMAP_WC_VARIANT=""
-ioremap_wc=$(grep -wc ioremap_wc ${USE_KERNELHEADERS}/include/asm-generic/iomap.h)
-if [ $ioremap_wc -ne 0 ]; then
-   reply="yes"
-   IOREMAP_WC_VARIANT="-DnNIKAL230_kHas_ioremap_wc"
-else
-   reply="no"
-fi
-echo "    Kernel has ioremap_wc: $reply"
-reply=
-
-CRED_VARIANT=""
-if [ -e ${USE_KERNELHEADERS}/include/linux/cred.h ]; then
-   reply="yes"
-   CRED_VARIANT="-DnNIKAL230_kHasCred"
-else
-   reply="no"
-fi
-echo "    Kernel has cred.h: $reply"
-reply=
-
-UIDGID_VARIANT=""
-if [ -e ${USE_KERNELHEADERS}/include/linux/uidgid.h ]; then
-   reply="yes"
-   UIDGID_VARIANT="-DnNIKAL1400_kHasUidGid"
-else
-   reply="no"
-fi
-echo "    Kernel has uidgid.h: $reply"
-reply=
-
-UMH_VARIANT=""
-umh_constants=$(grep -wc UMH_NO_WAIT ${USE_KERNELHEADERS}/include/linux/kmod.h)
-if [ $umh_constants -ne 0 ]; then
-   reply="yes"
-   UMH_VARIANT="-DnNIKAL240_kHasUMHConstants"
-else
-   reply="no"
-fi
-echo "    Kernel has UMH constants: $reply"
-reply=
-
-HAS_CREATE_PROC_READ_ENTRY=""
-proc_create_data=$(grep -wc create_proc_read_entry ${USE_KERNELHEADERS}/include/linux/proc_fs.h)
-if [ $proc_create_data -ne 0 ]; then
-   reply="yes"
-   HAS_CREATE_PROC_READ_ENTRY="-DnNIKAL1400_kHasCreateProcReadEntry"
-else
-   reply="no"
-fi
-echo "    Kernel has create_proc_read_entry: $reply"
-reply=
-
-NAMESPACED_GENETLINK_VARIANT=""
-namespaced_genetlink=$(awk '/genlmsg_unicast\(/, /\)/' ${USE_KERNELHEADERS}/include/net/genetlink.h | grep -c 'struct net')
-if [ $namespaced_genetlink -ne 0 ]; then
-   reply="yes"
-   NAMESPACED_GENETLINK_VARIANT="-DnNIKAL250_kHasNamespacedGenetlink"
-else
-   reply="no"
-fi
-echo "    Kernel has namespaced generic netlink API: $reply"
-reply=
-
-GENLMSG_NEW_VARIANT=""
-genlmsg_new=$(grep -wc genlmsg_new ${USE_KERNELHEADERS}/include/net/genetlink.h)
-if [ $genlmsg_new -ne 0 ]; then
-   reply="yes"
-   GENLMSG_NEW_VARIANT="-DnNIKAL250_kHasGenlmsgNew"
-else
-   reply="no"
-fi
-echo "    Kernel has genlmsg_new: $reply"
-reply=
-
-FAMILY_GENLMSG_PUT_VARIANT=""
-family_genlmsg_put=$(awk '/genlmsg_put\(/, /\)/' ${USE_KERNELHEADERS}/include/net/genetlink.h | grep -c 'struct genl_family')
-if [ $family_genlmsg_put -ne 0 ]; then
-   reply="yes"
-   FAMILY_GENLMSG_PUT_VARIANT="-DnNIKAL250_kHasFamilyGenlmsgPut"
-else
-   reply="no"
-fi
-echo "    Kernel has family genlmsg_put: $reply"
 reply=
 
 FAMILY_GENLOPS_OPS_MEMBER_VARIANT=""
@@ -560,17 +280,6 @@ fi
 echo "    Kernel struct uart_ops has set_wake(): $reply"
 reply=
 
-USE_TTY_PORT_PARAM=""
-tty_port_param=$(grep -wc 'tty_insert_flip_char[[:blank:]]*([[:blank:]]*struct tty_port' ${USE_KERNELHEADERS}/include/linux/tty_flip.h)
-if [ $tty_port_param -ne 0 ]; then
-   reply="yes"
-   USE_TTY_PORT_PARAM="-DnNIKAL100_kUseTtyPortParam"
-else
-   reply="no"
-fi
-echo "    Kernel uses tty_port instead of tty_struct for tty helper functions: $reply"
-reply=
-
 DEBUG_VARIANT=""
 if [ "$1" = "debug" ]; then
    echo "     "
@@ -581,43 +290,19 @@ fi
 KERNEL_VARIANTS=" \
 $MODULE_INIT_AND_CORE_VARIANT \
 $MUNMAP_VARIANT \
-$VMMMAP_VARIANT \
-$VMMUNMAP_VARIANT \
-$BUSNRES_VARIANT \
+$VMFAULTTYPE_VARIANT \
 $GET_USER_PAGES_VARIANT \
 $OFFSET_VARIANT \
-$USB_ALTSETTINGS_PTR_VARIANT \
-$USB_INTERFACE_REFCOUNT_VARIANT \
-$USB_INTERFACE_CACHE_VARIANT \
-$USB_SET_CONFIGURATION_VARIANT \
 $DEBUG_VARIANT \
-$USB_DEVICE_EP_ARRAY_VARIANT \
 $PAGE_TABLE_LEVEL_VARIANT \
-$USB_TIMEOUT_UNITS_VARIANT \
-$MUTEX_VARIANT \
 $CONFIG_VARIANT \
-$WORKQUEUE_VARIANT \
 $STRUCT_TIMER_LIST_VARIANT \
-$COMPLETION_VARIANT \
-$KZALLOC_VARIANT \
 $GENERATED_DIR_VARIANT \
-$CHAINED_SGL_VARIANT \
-$IOREMAP_WC_VARIANT \
-$CRED_VARIANT \
-$UIDGID_VARIANT \
-$VM_RESERVED_VARIANT \
 $VMOPS_STRUCT_FAULT_VARIANT \
-$UMH_VARIANT \
-$GENLMSG_NEW_VARIANT \
-$NAMESPACED_GENETLINK_VARIANT \
-$FAMILY_GENLMSG_PUT_VARIANT \
 $FAMILY_GENLOPS_GROUPS_VARIANT \
 $FAMILY_GENLOPS_OPS_MEMBER_VARIANT \
-$VERSION_VARIANT \
-$HAS_CREATE_PROC_READ_ENTRY \
 $HAS_RS485_SUPPORT \
 $HAS_RS485_CONFIG_ON_UART \
-$USE_TTY_PORT_PARAM \
 $UART_SET_WAKE_VARIANT \
 $ACPIREMOVE_VARIANT"
 

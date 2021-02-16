@@ -14,33 +14,14 @@
 
 #define ___nikal_c___
 
-
-#ifdef nNIKAL250_kUAPIVersion
 #include <generated/uapi/linux/version.h>
-#else
-#include <linux/version.h>
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
+   #error ("NI-KAL currently only supports Linux kernel versions 3.10 and above");
 #endif
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0))
-   #error ("NI-KAL currently only supports Linux kernel versions 2.6 and above");
-#endif
-
-
-#define nNIKAL180_mUSBSupportedVersion (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25))
-#define nNIKAL100_mUSBIsSupported (nNIKAL180_mUSBSupportedVersion && (defined(CONFIG_USB) || defined(CONFIG_USB_MODULE)))
 
 
 #define nNIKAL1500_mACPIIsSupported (defined(CONFIG_ACPI))
-
-
-#define nNIKAL100_mSerialCoreIsSupported (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32))
-
-#define nNIKAL100_mMin(x,y) ((x)<(y)?(x):(y))
-#define nNIKAL100_mMax(x,y) ((x)>(y)?(x):(y))
-
-#ifdef nNIKAL160_kConfig
-   #include <linux/config.h>
-#endif
 
 #ifdef MODULE
    #if defined(CONFIG_MODVERSIONS) && !defined(MODVERSIONS)
@@ -63,7 +44,6 @@
 #include <linux/list.h>
 #include <linux/sched.h>
 #include <linux/pci.h>
-#include <linux/usb.h>
 #include <linux/acpi.h>
 #include <linux/interrupt.h>
 #include <linux/wait.h>
@@ -72,15 +52,9 @@
 #include <linux/pagemap.h>
 #include <linux/kthread.h>
 #include <linux/kref.h>
-#ifdef nNIKAL150_kMutexMethod
-   #include <linux/mutex.h>
-#endif
-
-#ifdef nNIKAL200_kCompletion
-   #include <linux/completion.h>
-#endif
-
-#include <asm/mman.h>
+#include <linux/mutex.h>
+#include <linux/completion.h>
+#include <linux/mman.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/atomic.h>
@@ -101,22 +75,10 @@
 #include <linux/serial_reg.h>
 #include <linux/spinlock.h>
 #include <linux/delay.h>
-
-#ifndef nNIKAL1400_kHasCreateProcReadEntry
 #include <linux/seq_file.h>
-#endif
-
-#ifdef nNIKAL230_kHasCred
-   #include <linux/cred.h>
-#endif
-
-#ifdef nNIKAL1400_kHasUidGid
-   #include <linux/uidgid.h>
-#endif
-
-#ifdef nNIKAL250_kHasNamespacedGenetlink
+#include <linux/cred.h>
+#include <linux/uidgid.h>
 #include <net/net_namespace.h>
-#endif
 #include <net/genetlink.h>
 #include <linux/sysctl.h>
 #include <linux/firmware.h>
@@ -124,7 +86,7 @@
 #include "nikal.h"
 
 #ifdef MODULE_LICENSE
-   MODULE_LICENSE("Copyright (c) 2002-2019 National Instruments Corporation.  All Rights Reserved.  Any and all use of the copyrighted materials is subject to the then current terms and conditions of the applicable license agreement, which can be found at <http://www.ni.com/linux/>.");
+   MODULE_LICENSE("Copyright (c) 2002-2020 National Instruments Corporation.  All Rights Reserved.  Any and all use of the copyrighted materials is subject to the then current terms and conditions of the applicable license agreement, which can be found at <http://www.ni.com/linux/>.");
 #endif
 
 #ifdef MODULE_AUTHOR
@@ -141,15 +103,8 @@
 
 
 #define nNIKAL100_kPCIDeviceIDTableFooterSignature 0x70636964 
-#define nNIKAL100_kUSBDeviceIDTableFooterSignature 0x75736274 
 
 
-
-#ifdef IRQF_SHARED
-   #define NIKAL_IRQ_SHARED IRQF_SHARED
-#else
-   #define NIKAL_IRQ_SHARED SA_SHIRQ
-#endif
 
 
 #ifdef IRQF_NO_SOFTIRQ_CALL
@@ -162,12 +117,6 @@
 #define nNIKAL1400_kMaxOrder MAX_ORDER
 #else
 #error ("MAX_ORDER not defined, but is required.");
-#endif
-
-#ifdef nNIKAL100_kUSBmsecTimeout
-   #define nNIKAL100_kUSBControlTimeout USB_CTRL_GET_TIMEOUT
-#else
-   #define nNIKAL100_kUSBControlTimeout USB_CTRL_GET_TIMEOUT * HZ
 #endif
 
 #ifdef nNIKAL100_kDebuggingIsActive
@@ -198,21 +147,11 @@
 #endif
 
 
-#ifdef URB_ASYNC_UNLINK
-   #define nNIKAL130_kURBAsyncUnlink
-#endif
-
-
 #define nNIKAL120_mRoundUp(x, r) ((x + (r-1))&(~(r-1)))
 
 /** Compile time assert from Jon Jagger
  * http://www.jaggersoft.com/pubs/CVu11_3.html **/
 #define nNIKAL100_compileTimeAssert(pred,comment) switch(0){case 0:case pred:;}
-
-
-#ifndef PCI_CAP_ID_SSVID
-  #define PCI_CAP_ID_SSVID 0x0D
-#endif
 
 #define nNIKAL100_kSubsystemIDOffset       4
 #define nNIKAL100_kSubsystemVendorIDMask   0x0000FFFF
@@ -227,12 +166,6 @@ static inline int pci_enable_msi(struct pci_dev *p) { return -ENOSYS; }
 static inline void pci_disable_msi(struct pci_dev *p) { }
 #endif
 
-#ifdef nNIKAL240_kHasVM_RESERVED
-#define nNIKAL240_kVM_RESERVED VM_RESERVED  
-#else
-#define nNIKAL240_kVM_RESERVED (VM_DONTEXPAND | VM_DONTDUMP)   
-#endif
-
 
 
 
@@ -242,12 +175,16 @@ typedef struct inode                nLinux_inode;
 typedef struct file                 nLinux_fileHandle;
 typedef struct vm_area_struct       nLinux_vmArea;
 typedef struct vm_fault             nLinux_vmFault;
+#ifdef nNIKAL1_kHasVmFaultType
+typedef        vm_fault_t           nLinux_vmFaultType;
+#else
+typedef        int                  nLinux_vmFaultType;
+#endif
 typedef struct page                 nLinux_physicalPage;
 typedef struct pt_regs              nLinux_registers;
 typedef struct semaphore            nLinux_semaphore;
 typedef struct tasklet_struct       nLinux_tasklet;
 typedef struct pci_device_id        nLinux_pciDeviceID;
-typedef struct usb_device_id        nLinux_usbDeviceID;
 typedef struct mm_struct            nLinux_mm;
 typedef struct timeval              nLinux_timeValue;
 typedef struct timer_list           nLinux_timerList;
@@ -255,26 +192,13 @@ typedef struct timespec             nLinux_timeSpec;
 typedef struct pci_dev              nLinux_pciDevice;
 typedef struct pci_bus              nLinux_pciBus;
 typedef struct pci_driver           nLinux_pciDriver;
-typedef struct usb_device           nLinux_usbDevice;
-typedef struct usb_interface        nLinux_usbInterface;
-typedef struct usb_driver           nLinux_usbDriver;
-typedef struct usb_ctrlrequest      nLinux_usbCtrlRequest;
-typedef struct urb                  nLinux_urb;
-typedef struct usb_host_config      nLinux_usbConfigDescriptorWrapper;
-typedef struct usb_host_interface   nLinux_usbInterfaceDescriptorWrapper;
-typedef struct usb_host_endpoint    nLinux_usbEndpointDescriptorWrapper;
-typedef struct usb_endpoint_descriptor nLinux_usbEndpointDescriptor;
 typedef struct acpi_device          nLinux_acpiDevice;
 typedef struct acpi_driver          nLinux_acpiDriver;
 typedef struct list_head            nLinux_listHead;
 typedef struct module               nLinux_driver;
 typedef struct file_operations      nLinux_fileOperations;
 typedef struct vm_operations_struct nLinux_vmOperations;
-#ifdef nNIKAL150_kMutexMethod
 typedef struct mutex                nLinux_mutex;
-#else
-typedef struct semaphore            nLinux_mutex;
-#endif
 typedef struct task_struct          nLinux_task;
 typedef struct cdev                 nLinux_cdev;
 typedef        spinlock_t           nLinux_spinlock;
@@ -294,26 +218,19 @@ typedef        tcflag_t             nLinux_termiosFlags;
 
 
 
+
 static int __init nNIKAL100_initDriver(void);
 static void __exit nNIKAL100_cleanupDriver(void);
 
 
-#ifdef nNIKAL1400_kHasCreateProcReadEntry
-static int nNIKAL200_procRead(char *page, char **start, off_t offset, int count, int *eof, void *data);
-#else
 static int nNIKAL250_procOpen(struct inode *inode, struct file *file);
-#endif
 
 
 static int nNIKAL100_open(nLinux_inode *the_inode, nLinux_fileHandle *filePtr);
 static int nNIKAL100_release(nLinux_inode *the_inode, nLinux_fileHandle *filePtr);
 static int nNIKAL100_ioctl(nLinux_inode *the_inode, nLinux_fileHandle *filePtr, unsigned int command, unsigned long param);
-#ifdef HAVE_UNLOCKED_IOCTL
 static long nNIKAL100_unlockedIoctl(nLinux_fileHandle *filePtr, unsigned int command, unsigned long param);
-#endif
-#ifdef HAVE_COMPAT_IOCTL
 static long nNIKAL100_compatIoctl(nLinux_fileHandle *filePtr, unsigned int command, unsigned long param);
-#endif
 static ssize_t nNIKAL100_write(nLinux_fileHandle *filePtr, const char __user *buffer, size_t count, loff_t *offset);
 static ssize_t nNIKAL220_write(nLinux_fileHandle *filePtr, const char __user *buffer, size_t count, loff_t *offset);
 static ssize_t nNIKAL100_read(nLinux_fileHandle *filePtr, char __user *buffer, size_t count, loff_t *offset);
@@ -323,7 +240,6 @@ static int nNIKAL220_mmap(nLinux_fileHandle *filePtr, nLinux_vmArea *vma);
 static loff_t nNIKAL100_llseek(nLinux_fileHandle *filePtr, loff_t inOffset, int seekFrom);
 
 
-#if nNIKAL100_mSerialCoreIsSupported
 static unsigned int nNIKAL100_uartOps_tx_empty(nLinux_uartPort *uport);
 static void         nNIKAL100_uartOps_set_mctrl(nLinux_uartPort *uport, unsigned int mctrl);
 static unsigned int nNIKAL100_uartOps_get_mctrl(nLinux_uartPort *uport);
@@ -354,8 +270,6 @@ static int          nNIKAL100_uartRs485Ops_disable_transceivers(nLinux_uartPort 
 static int          nNIKAL100_uartRs485Ops_config_rs485(nLinux_uartPort *uport, nLinux_serialRs485 *rs485);
 #endif
 
-#endif
-
 
 static void nNIKAL220_vmaClosePageList(nLinux_vmArea *vma);
 static void nNIKAL220_vmaClosePhysical(nLinux_vmArea *vma);
@@ -365,12 +279,12 @@ static void nNIKAL100_dispatchDPC (unsigned long interruptData);
 static nNIKAL100_tBoolean nNIKAL100_isKernelContiguousPointer(const void *ptr);
 static nNIKAL100_tUPtr nNIKAL230_kernelVirtualToPhysical(const void *ptr);
 
-static int nNIKAL190_vmaPageFaultHandler(
+static nLinux_vmFaultType nNIKAL190_vmaPageFaultHandler(
 #ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
       nLinux_vmArea *vma,
 #endif
       nLinux_vmFault *vmf);
-static int nNIKAL220_vmaPageFaultHandlerPageList(
+static nLinux_vmFaultType nNIKAL220_vmaPageFaultHandlerPageList(
 #ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
       nLinux_vmArea *vma,
 #endif
@@ -404,11 +318,7 @@ static nNIKAL100_tStatus nNIKAL100_remapPageRange(void *vmaPtr, nNIKAL100_tUPtr 
 
 static inline void nNIKAL230_Mutex_init(nLinux_mutex *m)
 {
-#ifdef nNIKAL150_kMutexMethod
    mutex_init(m);
-#else
-   sema_init(m, 1);
-#endif
 }
 
 
@@ -510,25 +420,15 @@ typedef struct
    nNIKAL100_tWorkQueue workQueue;
 } nNIKAL100_tCreateThreadParamBlock;
 
-#ifdef nNIKAL160_kWorkqueueNonDelay
 typedef struct
 {
    nNIKAL100_tWorkQueue workQueue;
    void *data;
 } nNIKAL160_tWorkItemWithDataPointer;
-#endif
 
 
 
-#if   defined(nNIKAL200_kCompletion)
 typedef struct completion nNIKAL100_tSingleUseEvent;
-#else
-typedef struct
-{
-   wait_queue_head_t waitQueue;
-   nNIKAL100_tU32 done;
-} nNIKAL100_tSingleUseEvent;
-#endif
 
 typedef struct
 {
@@ -550,15 +450,6 @@ typedef struct
    nNIKAL100_tDriver *driver;
    nLinux_pciDeviceID *table;
 } nNIKAL100_tPCIDeviceIDTableFooter;
-
-typedef struct
-{
-   nNIKAL100_tUPtr signature;
-   nNIKAL100_tU32 capacity;
-   nNIKAL100_tU32 size;
-   nNIKAL100_tDriver *driver;
-   nLinux_usbDeviceID *table;
-} nNIKAL100_tUSBDeviceIDTableFooter;
 
 typedef struct
 {
@@ -652,7 +543,6 @@ static const nNIKAL100_tMMapData nNIKAL100_gMMapData =
 
 static const nNIKAL100_tMMapData* nNIKAL100_gMMapDataPtr = &nNIKAL100_gMMapData;
 
-#ifndef nNIKAL1400_kHasCreateProcReadEntry
 static nLinux_fileOperations nNIKAL250_procFops =
 {
    .open = nNIKAL250_procOpen,
@@ -660,20 +550,13 @@ static nLinux_fileOperations nNIKAL250_procFops =
    .llseek = seq_lseek,
    .release = single_release
 };
-#endif
 
 static nLinux_fileOperations nNIKAL100_fops =
 {
    .open = nNIKAL100_open,
    .release = nNIKAL100_release,
-#ifdef HAVE_UNLOCKED_IOCTL
    .unlocked_ioctl = nNIKAL100_unlockedIoctl,
-#else
-   .ioctl = nNIKAL100_ioctl,
-#endif
-#ifdef HAVE_COMPAT_IOCTL
    .compat_ioctl = nNIKAL100_compatIoctl,
-#endif
    .read = nNIKAL100_read,
    .write = nNIKAL100_write,
    .mmap = nNIKAL100_mmap,
@@ -684,21 +567,14 @@ static nLinux_fileOperations nNIKAL220_fops =
 {
    .open = nNIKAL100_open,
    .release = nNIKAL100_release,
-#ifdef HAVE_UNLOCKED_IOCTL
    .unlocked_ioctl = nNIKAL100_unlockedIoctl,
-#else
-   .ioctl = nNIKAL100_ioctl,
-#endif
-#ifdef HAVE_COMPAT_IOCTL
    .compat_ioctl = nNIKAL100_compatIoctl,
-#endif
    .read = nNIKAL220_read,
    .write = nNIKAL220_write,
    .mmap = nNIKAL220_mmap,
    .llseek = nNIKAL100_llseek,
 };
 
-#if nNIKAL100_mSerialCoreIsSupported
 static nLinux_uartOperations nNIKAL100_uartOps =
 {
    .tx_empty      = nNIKAL100_uartOps_tx_empty,
@@ -737,8 +613,6 @@ static nLinux_uartRs485Operations nNIKAL100_uartRs485Ops =
 };
 #endif
 
-#endif
-
 static nLinux_vmOperations nNIKAL100_vmaOps =
 {
    .fault = nNIKAL190_vmaPageFaultHandler,
@@ -757,7 +631,7 @@ static const char *nNIVersion_versionStringArray[] =
 {
    "nNIVersion_CompanyName=National Instruments Corporation",
 
-   "nNIVersion_LegalCopyright=Copyright (c) 2002-2019 National Instruments Corporation. "
+   "nNIVersion_LegalCopyright=Copyright (c) 2002-2020 National Instruments Corporation. "
    "All Rights Reserved. Any and all use of the copyrighted materials is subject to the "
    "then current terms and conditions of the applicable license agreement, "
    "which can be found at <http://www.ni.com/linux/>.",
@@ -767,13 +641,13 @@ static const char *nNIVersion_versionStringArray[] =
    "nNIVersion_FileDescription=NI-KAL Driver",
 
    #ifdef nNIKAL100_kDebuggingIsActive
-      "nNIVersion_ProductVersion=19.0.0f0 debug build",
-      "nNIVersion_FileVersion=19.0.0f0 debug build",
-      "nNIVersion_InternalName=NIKAL 19.0.0f0 debug build",
+      "nNIVersion_ProductVersion=20.0.0f0 debug build",
+      "nNIVersion_FileVersion=20.0.0f0 debug build",
+      "nNIVersion_InternalName=NIKAL 20.0.0f0 debug build",
    #else
-      "nNIVersion_ProductVersion=19.0.0f0",
-      "nNIVersion_FileVersion=19.0.0f0",
-      "nNIVersion_InternalName=NIKAL 19.0.0f0",
+      "nNIVersion_ProductVersion=20.0.0f0",
+      "nNIVersion_FileVersion=20.0.0f0",
+      "nNIVersion_InternalName=NIKAL 20.0.0f0",
    #endif
 
    NULL
@@ -917,19 +791,14 @@ static inline long nNIKAL1600_currentTaskGetUserPages(
    unsigned long start,
    unsigned long nr_pages,
    int write,
-   int force,
-   struct page **pages,
-   struct vm_area_struct **vmas)
+   struct page **pages)
 {
 #if defined(nNIKAL1700_kGetUserPagesCombinedFlags)
-   unsigned int flags = 0;
-   flags |= write ? FOLL_WRITE : 0;
-   flags |= force ? FOLL_FORCE : 0;
-   return get_user_pages(start, nr_pages, flags, pages, vmas);
+   return get_user_pages(start, nr_pages, write ? FOLL_WRITE : 0, pages, NULL);
 #elif defined(nNIKAL1600_kGetUserPagesImpliesCurrentTask)
-   return get_user_pages(start, nr_pages, write, force, pages, vmas);
+   return get_user_pages(start, nr_pages, write, 0, pages, NULL);
 #else
-   return get_user_pages(current, current->mm, start, nr_pages, write, force, pages, vmas);
+   return get_user_pages(current, current->mm, start, nr_pages, write, 0, pages, NULL);
 #endif
 }
 
@@ -940,8 +809,6 @@ static nNIKAL100_tStatus nNIKAL1400_createProcess(const char **argv, int wait, i
                     NULL
                };
    int ret;
-
-#ifdef nNIKAL240_kHasUMHConstants
 
    
    switch(wait)
@@ -958,7 +825,6 @@ static nNIKAL100_tStatus nNIKAL1400_createProcess(const char **argv, int wait, i
       default:
          return nNIKAL100_kStatusInvalidParameter;
    }
-#endif
 
    ret = call_usermodehelper((char*)argv[0], (char**)argv, envp, wait);
    if (ret < 0)
@@ -1228,14 +1094,7 @@ static inline void nNIKAL200_freeDeviceMinorRegion(nNIKAL100_tDriver *driver, de
 
 static inline void *nNIKAL200_mallocZeroed(size_t size, int flags)
 {
-#ifdef nNIKAL200_kHasKzalloc
    return kzalloc(size, flags);
-#else
-   void * mem = kmalloc(size, flags);
-   if (mem)
-      memset(mem, 0, size);
-   return mem;
-#endif
 }
 
 
@@ -1437,21 +1296,12 @@ static nNIKAL100_tStatus nNIKAL200_createKALInterfaceProperties(nNIKAL200_tDevic
    di->pathProperty.content = di->devicePath;
    di->pathProperty.length  = strlen(di->devicePath) + 1;
 
-#ifdef nNIKAL1400_kHasCreateProcReadEntry
-   return create_proc_read_entry(nNIKAL200_kDeviceInterfacesPathFile,
-                                  S_IRUGO, 
-                                  di->interfaceDir,
-                                  nNIKAL200_procRead,
-                                  &di->pathProperty)
-          ? nNIKAL100_kStatusSuccess : nNIKAL100_kStatusMemoryFull;
-#else
    return proc_create_data(nNIKAL200_kDeviceInterfacesPathFile,
                                   S_IRUGO, 
                                   di->interfaceDir,
                                   &nNIKAL250_procFops,
                                   &di->pathProperty)
           ? nNIKAL100_kStatusSuccess : nNIKAL100_kStatusMemoryFull;
-#endif
 }
 
 static void nNIKAL200_destroyKALInterfaceProperties(nNIKAL200_tDeviceInterface *di)
@@ -1693,19 +1543,11 @@ nNIKAL100_cc void *nNIKAL200_registerProperty(nNIKAL200_tPropertyClass class,
       goto out_destruct;
    }
 
-#ifdef nNIKAL1400_kHasCreateProcReadEntry
-   procEntry = create_proc_read_entry(pd->name,
-                                      S_IRUGO, 
-                                      parentDir,
-                                      nNIKAL200_procRead,
-                                      pd);
-#else
    procEntry = proc_create_data(pd->name,
                                   S_IRUGO, 
                                   parentDir,
                                   &nNIKAL250_procFops,
                                   pd);
-#endif
 
    if (!procEntry) {
       KAL_DPRINT("Error: Could not create proc entry for property '%s'.\n", name);
@@ -1791,23 +1633,9 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_registerDriver(nNIKAL100_tDriver *drive
       goto out_unregister;
    }
 
-#ifndef HAVE_COMPAT_IOCTL
-   err = register_ioctl32_conversion(0xc018d501, NULL);
-
-   if (unlikely(err)) {
-      status = nNIKAL100_convertLinuxToKALStatus(err);
-      goto out_cdev_del;
-   }
-#endif
-
 out:
    return status;
 
-#ifndef HAVE_COMPAT_IOCTL
-out_cdev_del:
-   KAL_DPRINT("Error %d. Unable to register ioctl32 conversion.\n", (int)status);
-   cdev_del(&nNIKAL200_sPALPseudoDeviceInterface.cdev);
-#endif
 out_unregister:
    KAL_DPRINT("Error %d. Unable to register as character driver.\n", (int)status);
    nNIKAL200_unregisterDriver(driver);
@@ -1999,10 +1827,6 @@ nNIKAL100_cc void nNIKAL100_unregisterDriver(nNIKAL100_tDriver *driver)
 {
    KAL_ASSERT(nNIKAL200_sPALPseudoDevice.driver == driver);
 
-#ifndef HAVE_COMPAT_IOCTL
-   unregister_ioctl32_conversion(0xc018d501);
-#endif
-
    cdev_del(&nNIKAL200_sPALPseudoDeviceInterface.cdev);
 
    nNIKAL200_unregisterDriver(driver);
@@ -2182,20 +2006,18 @@ static int nNIKAL100_ioctl(nLinux_inode *the_inode, nLinux_fileHandle *filePtr,
 
    return status;
 }
-#ifdef HAVE_UNLOCKED_IOCTL
+
 static long nNIKAL100_unlockedIoctl(nLinux_fileHandle *filePtr, unsigned int command,
    unsigned long param)
 {
    return (long)nNIKAL100_ioctl(NULL, filePtr, command, param);
 }
-#endif
-#ifdef HAVE_COMPAT_IOCTL
+
 static long nNIKAL100_compatIoctl(nLinux_fileHandle *filePtr, unsigned int command,
    unsigned long param)
 {
    return (long)nNIKAL100_ioctl(NULL, filePtr, command, param);
 }
-#endif
 
 
 static ssize_t nNIKAL100_read(nLinux_fileHandle *filePtr, char __user *buffer, size_t count, loff_t *offset)
@@ -2394,7 +2216,7 @@ static int nNIKAL100_mmap(nLinux_fileHandle *filePtr, nLinux_vmArea *vma)
 
    if (status >= 0)
    {
-      vma->vm_flags |= nNIKAL240_kVM_RESERVED | VM_LOCKED | VM_DONTCOPY | VM_DONTEXPAND;
+      vma->vm_flags |= VM_DONTDUMP | VM_LOCKED | VM_DONTCOPY | VM_DONTEXPAND;
    }
 
    return status;
@@ -2479,17 +2301,6 @@ static loff_t nNIKAL100_llseek(nLinux_fileHandle *filePtr, loff_t inOffset, int 
    return -ESPIPE;
 }
 
-#ifdef nNIKAL1400_kHasCreateProcReadEntry
-static int nNIKAL200_procRead(char *page, char **start, off_t offset, int count, int *eof, void *data)
-{
-   nNIKAL200_tPropertyData *pd = data;
-
-   memcpy(page, pd->content, pd->length);
-   *eof = 1;
-
-   return pd->length;
-}
-#else
 static int nNIKAL250_procShow(struct seq_file *m, void *v)
 {
    nNIKAL200_tPropertyData *pd = m->private;
@@ -2501,7 +2312,6 @@ static int nNIKAL250_procOpen(struct inode *inode, struct file *file)
 {
    return single_open(file, nNIKAL250_procShow, PDE_DATA(inode));
 }
-#endif
 
 
 static inline nNIKAL100_tBoolean nNIKAL100_isKernelContiguousPointer(const void *ptr)
@@ -2527,7 +2337,6 @@ static inline nNIKAL100_tBoolean nNIKAL100_isKernelVirtualPointer(const void *pt
 
 
 
-#if nNIKAL100_mSerialCoreIsSupported
 static unsigned int nNIKAL100_uartOps_tx_empty(nLinux_uartPort *uport)
 {
    nNIKAL100_tSerialCoreOperations *clientOps;
@@ -3177,8 +2986,6 @@ static nNIKAL100_tSerialCorePortSettings nNIKAL100_getSerialSettings(nLinux_uart
    return ret;
 }
 
-#endif
-
 
 
 
@@ -3207,7 +3014,7 @@ static void nNIKAL220_vmaClosePhysical(nLinux_vmArea *vma)
 }
 
 
-static int nNIKAL190_vmaPageFaultHandler(
+static nLinux_vmFaultType nNIKAL190_vmaPageFaultHandler(
 #ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
       nLinux_vmArea *vma,
 #endif
@@ -3219,7 +3026,7 @@ static int nNIKAL190_vmaPageFaultHandler(
 }
 
 
-static int nNIKAL220_vmaPageFaultHandlerPageList(
+static nLinux_vmFaultType nNIKAL220_vmaPageFaultHandlerPageList(
 #ifdef nNIKAL1_kFaultHandlerTakesVmAreaStruct
       nLinux_vmArea *vma,
 #endif
@@ -3510,7 +3317,7 @@ nNIKAL100_cc nNIKAL100_tUPtr nNIKAL100_getPhysicalMemorySize(void)
 
    memorySize = (nNIKAL100_tU64) systemInfo.totalram * (nNIKAL100_tU64) PAGE_SIZE;
 
-#ifdef __i386__
+#if defined(__arm__)
    if ((memorySize >> 32) != 0)
    {
       KAL_DPRINT("nNIKAL100_getPhysicalMemorySize() overflow: %llx\n", (long long)memorySize);
@@ -3567,8 +3374,7 @@ static void *nNIKAL100_mapUserKIOBuf(void *start, nNIKAL100_tUPtr size, nNIKAL10
    }
 
    down_read(&(current->mm->mmap_sem));
-   pagesMapped = nNIKAL1600_currentTaskGetUserPages((unsigned long) start, sizeInPages,
-      isWritable, 0 , pages, NULL );
+   pagesMapped = nNIKAL1600_currentTaskGetUserPages((unsigned long) start, sizeInPages, isWritable, pages);
    up_read(&(current->mm->mmap_sem));
 
    if (pagesMapped < 0)
@@ -3578,8 +3384,7 @@ static void *nNIKAL100_mapUserKIOBuf(void *start, nNIKAL100_tUPtr size, nNIKAL10
       {
          isWritable = 0;
          down_read(&(current->mm->mmap_sem));
-         pagesMapped = nNIKAL1600_currentTaskGetUserPages((unsigned long) start, sizeInPages,
-            isWritable, 0 , pages, NULL );
+         pagesMapped = nNIKAL1600_currentTaskGetUserPages((unsigned long) start, sizeInPages, isWritable, pages);
          up_read(&(current->mm->mmap_sem));
       }
       
@@ -3626,7 +3431,7 @@ static void nNIKAL100_unmapUserKIOBuf(void *iobuf)
       if (!PageReserved(pages[pagesMapped-1]))
       {
          
-         if (isWritable) set_page_dirty(pages[pagesMapped-1]);
+         if (isWritable) set_page_dirty_lock(pages[pagesMapped-1]);
 
          
          put_page(pages[pagesMapped-1]);
@@ -3669,13 +3474,8 @@ static inline pte_t *nNIKAL100_getKernelPageTableEntry(nLinux_mm* mm, void *addr
    pte_t *pte;
    pmd = nNIKAL120_getPageTablePMDEntry(mm, address);
 
-#ifdef nNIKAL100_kPTEOffsetKernel
    pte = pte_offset_kernel(pmd, (nNIKAL100_tUPtr)address);
    return pte;
-#else
-   pte = pte_offset(pmd, (nNIKAL100_tUPtr)address);
-   return pte;
-#endif
 }
 
 
@@ -3683,19 +3483,13 @@ static inline pte_t *nNIKAL100_mapUserPageTableEntry(nLinux_mm* mm, void *addres
 {
    pmd_t *pmd = nNIKAL120_getPageTablePMDEntry(mm, address);
 
-#ifdef nNIKAL100_kPTEOffsetKernel
    return pte_offset_map(pmd, (nNIKAL100_tUPtr)address);
-#else
-   return pte_offset(pmd, (nNIKAL100_tUPtr)address);
-#endif
 }
 
 
 static inline void nNIKAL100_unmapUserPageTableEntry(pte_t *pteToCleanup)
 {
-#ifdef nNIKAL100_kPTEOffsetKernel
    pte_unmap(pteToCleanup);
-#endif
 }
 
 
@@ -3703,7 +3497,7 @@ static nNIKAL100_tStatus nNIKAL100_remapPageRange(void *vmaPtr, nNIKAL100_tUPtr 
 {
    int status;
    nLinux_vmArea *vma = (nLinux_vmArea*)vmaPtr;
-   vma->vm_flags |= (nNIKAL240_kVM_RESERVED | VM_IO);
+   vma->vm_flags |= (VM_DONTEXPAND | VM_DONTDUMP | VM_IO);
 
    status = remap_pfn_range(vma, vma->vm_start, physAddr >> PAGE_SHIFT,
       (vma->vm_end - vma->vm_start),
@@ -3723,16 +3517,9 @@ static nNIKAL100_tUPtr nNIKAL100_doMMap(void *file, nNIKAL100_tUPtr address,
       KAL_DPRINT("nNIKAL100_doMMap(): called when user mode address space is already destroyed\n");
       return -1; 
    }
-#ifdef nNIKAL240_kHasVmMmap
-   
    mmapAddress = vm_mmap((nLinux_fileHandle*)file, address, length, PROT_READ|PROT_WRITE,
       MAP_SHARED, offset);
-#else
-   down_write(&(current->mm->mmap_sem));
-   mmapAddress = do_mmap((nLinux_fileHandle*)file, address, length, PROT_READ|PROT_WRITE,
-      MAP_SHARED, offset);
-   up_write(&(current->mm->mmap_sem));
-#endif
+
    return mmapAddress;
 }
 
@@ -3754,14 +3541,7 @@ static nNIKAL100_tStatus nNIKAL100_doMUnmap(nNIKAL100_tUPtr address, nNIKAL100_t
    if (current->mm == NULL)
       return 0;
 
-#ifdef nNIKAL240_kHasVmMunmap
-   
    status = vm_munmap(address, length);
-#else
-   down_write(&current->mm->mmap_sem);
-   status = nNIKAL240_do_munmap(current->mm, address, length);
-   up_write(&(current->mm->mmap_sem));
-#endif
 
    return nNIKAL100_convertLinuxToKALStatus(status);
 }
@@ -3859,24 +3639,17 @@ nNIKAL100_cc nNIKAL100_tUPtr nNIKAL100_getPhysicalAddress(const void *ptr, nNIKA
 
    if (pmd_present(*_pmd))
    {
-#ifdef nNIKAL100_kPTEOffsetKernel
       _pte = pte_offset_map(_pmd, (nNIKAL100_tUPtr)ptr);
-#else
-      _pte = pte_offset(_pmd, (nNIKAL100_tUPtr)ptr);
-#endif
       if (pte_present(*_pte))
          _page = pte_page(*_pte);
-
-#ifdef nNIKAL100_kPTEOffsetKernel
       pte_unmap(_pte);
-#endif
    }
    spin_unlock(&(current->mm->page_table_lock));
 
    if (_page)
    {
       nNIKAL100_tU64 retVal = (page_to_phys(_page) + ((nNIKAL100_tUPtr)ptr & (PAGE_SIZE-1)));
-#ifdef __i386__
+#if defined(__arm__)
       if ((retVal >> 32) != 0)
       {
          KAL_DPRINT("nNIKAL100_getPhysicalAddress() overflow: %llx\n", (long long)retVal);
@@ -4126,7 +3899,6 @@ nNIKAL100_cc void nNIKAL200_joinThread( nNIKAL200_tThread *thread )
 
 nNIKAL100_cc void * nNIKAL150_createMutex( void )
 {
-#ifdef nNIKAL150_kMutexMethod
    nLinux_mutex *_mutex;  
 
    if((_mutex = nNIKAL100_malloc( sizeof( nLinux_mutex ) )) != NULL )
@@ -4137,15 +3909,11 @@ nNIKAL100_cc void * nNIKAL150_createMutex( void )
 
    
    return (void *)_mutex;
-#else
-   return nNIKAL100_createSemaphore(1);
-#endif
 }
 
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL150_destroyMutex( void * mutex )
 {
-#ifdef nNIKAL150_kMutexMethod
    
    nLinux_mutex *_mutex;
    if(!mutex) return nNIKAL100_kStatusSuccess;
@@ -4155,15 +3923,11 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL150_destroyMutex( void * mutex )
    nNIKAL100_free( _mutex );
 
    return nNIKAL100_kStatusSuccess;
-#else
-   return nNIKAL100_destroySemaphore(mutex);
-#endif
 }
 
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL150_acquireMutex( void * mutex )
 {
-#ifdef nNIKAL150_kMutexMethod
    
    nLinux_mutex *_mutex = (nLinux_mutex *)mutex;
 
@@ -4174,15 +3938,11 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL150_acquireMutex( void * mutex )
 
    
    return nNIKAL100_kStatusSuccess;
-#else
-   return nNIKAL100_acquireSemaphore(mutex);
-#endif
 }
 
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL150_acquireMutexInterruptible( void * mutex )
 {
-#ifdef nNIKAL150_kMutexMethod
    int status;
 
    
@@ -4192,15 +3952,11 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL150_acquireMutexInterruptible( void * mutex
 
    status = mutex_lock_interruptible( _mutex );
    return nNIKAL100_convertLinuxToKALStatus(status);
-#else
-   return nNIKAL100_acquireSemaphoreInterruptible(mutex);
-#endif
 }
 
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL150_acquireMutexZeroTimeout( void * mutex )
 {
-#ifdef nNIKAL150_kMutexMethod
    
    nLinux_mutex *_mutex = (nLinux_mutex *)mutex;
 
@@ -4215,15 +3971,11 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL150_acquireMutexZeroTimeout( void * mutex )
    {
       return nNIKAL100_kStatusSyncTimedOut;
    }
-#else
-   return nNIKAL100_acquireSemaphoreZeroTimeout(mutex);
-#endif
 }
 
 
 nNIKAL100_cc void nNIKAL150_releaseMutex( void * mutex )
 {
-#ifdef nNIKAL150_kMutexMethod
    
    nLinux_mutex *_mutex = (nLinux_mutex *)mutex;
 
@@ -4231,10 +3983,6 @@ nNIKAL100_cc void nNIKAL150_releaseMutex( void * mutex )
 
    
    mutex_unlock( _mutex );
-
-#else
-   nNIKAL100_releaseSemaphore(mutex);
-#endif
 }
 
 
@@ -4415,14 +4163,8 @@ nNIKAL100_cc void nNIKAL100_releaseSpinLockDPC( void *spinlock )
 
 nNIKAL100_cc void nNIKAL100_initializeSingleUseEvent( void *event )
 {
-#if   defined(nNIKAL200_kCompletion)
    struct completion *_event = (struct completion *)event;
    init_completion(_event);
-#else
-   nNIKAL100_tSingleUseEvent *_event = event;
-   _event->done = 0;
-   init_waitqueue_head(&(_event->waitQueue));
-#endif
 }
 
 
@@ -4435,18 +4177,8 @@ nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_getSingleUseEventSize( void )
 
 nNIKAL100_cc void nNIKAL100_releaseSingleUseEvent( void *event )
 {
-#if   defined(nNIKAL200_kCompletion)
    struct completion *_event = (struct completion *)event;
    complete(_event);
-#else
-   nNIKAL100_tSingleUseEvent *_event = (nNIKAL100_tSingleUseEvent *)event;
-   nNIKAL120_mCheckStackUsage;
-
-   nNIKAL100_tUPtr flags = nNIKAL110_acquireSpinLockInterrupt( &_event->waitQueue.lock );
-   _event->done = 1;
-   wake_up(&(_event->waitQueue));
-   nNIKAL110_releaseSpinLockInterrupt( &_event->waitQueue.lock, flags );
-#endif
 }
 
 
@@ -4484,7 +4216,6 @@ static void nNIKAL1_timerListTimeoutCallback( struct timer_list *t )
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_waitForSingleUseEvent( void *event )
 {
-#if   defined(nNIKAL200_kCompletion)
    struct completion *_event = (struct completion *)event;
 
    
@@ -4497,32 +4228,6 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_waitForSingleUseEvent( void *event )
    } else {
       wait_for_completion(_event);
    }
-#else
-
-   nNIKAL100_tSingleUseEvent *_event = (nNIKAL100_tSingleUseEvent *)event;
-
-   
-   if ((current->mm == NULL) && !(current->flags & PF_EXITING))
-   {
-      return nNIKAL100_waitForSingleUseEventInterruptible(event);
-   }
-   else
-   {
-      
-
-      
-      
-      
-      DEFINE_WAIT(wait);
-      if (!(_event->done))
-      {
-         prepare_to_wait_exclusive(&(_event->waitQueue), &wait, TASK_UNINTERRUPTIBLE);
-         if (!(_event->done))
-            schedule();
-         finish_wait(&(_event->waitQueue), &wait);
-      }
-   }
-#endif
    nNIKAL120_mCheckStackUsage;
 
    return nNIKAL100_kStatusSuccess;
@@ -4533,28 +4238,8 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_waitForSingleUseEventInterruptible ( vo
 {
    nNIKAL100_tStatus retVal = nNIKAL100_kStatusSuccess;
 
-#if   defined(nNIKAL200_kCompletion)
    struct completion *_event = (struct completion *)event;
    retVal = nNIKAL100_convertLinuxToKALStatus(wait_for_completion_interruptible( _event ));
-#else
-   nNIKAL100_tSingleUseEvent *_event = (nNIKAL100_tSingleUseEvent *)event;
-   
-   DEFINE_WAIT(wait);
-   if (!(_event->done))
-   {
-      prepare_to_wait_exclusive(&(_event->waitQueue), &wait, TASK_INTERRUPTIBLE);
-      while (!(_event->done))
-      {
-         if (signal_pending(current))
-         {
-            retVal = nNIKAL100_kStatusWaitInterrupted;
-            break;
-         }
-         schedule();
-      }
-      finish_wait(&(_event->waitQueue), &wait);
-   }
-#endif
    nNIKAL120_mCheckStackUsage;
 
    return retVal;
@@ -4756,7 +4441,7 @@ static int nNIKAL200_commonPCIProbe(
                                       &device->deviceExtension);
 
    if (nNIKAL100_statusIsFatal(status))
-      goto remove_proc;
+      goto remove_proc_and_disable_msi;
 
    device->addDeviceSuccess = 1;
    pci_set_drvdata(dev, device);
@@ -4764,10 +4449,11 @@ static int nNIKAL200_commonPCIProbe(
    
    return 0;
 
-remove_proc:
-   KAL_DPRINT("Error: %d. Add device failed. Removing proc entries for '%s'\n",
-      status, device->nameString);
+remove_proc_and_disable_msi:
+   KAL_DPRINT("Error: %d. Add device failed. Removing proc entries for '%s'. Disabling MSI (dev=%p)\n",
+      status, device->nameString, dev);
    nNIKAL200_destroyDeviceProcDirs(device);
+   pci_disable_msi(dev); 
 disable_dev:
    KAL_DPRINT("Error: %d. Disabling device (dev=%p)\n", status, dev);
    pci_disable_device(dev);
@@ -4988,13 +4674,8 @@ nNIKAL100_cc void nNIKAL100_enumeratePCIBuses(nNIKAL100_tPCIBridgeVisitor visito
          }
          pciBusInformation.primary = bus->primary;
          
-#ifdef nNIKAL240_kHasPciBusnRes
          pciBusInformation.secondary = bus->busn_res.start;
          pciBusInformation.subordinate = bus->busn_res.end;
-#else
-         pciBusInformation.secondary = bus->secondary;
-         pciBusInformation.subordinate = bus->subordinate;
-#endif
          pciBusInformation.domain = pci_domain_nr(bus);
          (*visitor)(visitorArgument, &pciBusInformation);
       }
@@ -5016,245 +4697,24 @@ nNIKAL100_cc nNIKAL100_tI32 nNIKAL240_getPCIDomain(const void * osDevObject)
 }
 
 
-#if nNIKAL100_mUSBIsSupported
-static inline nNIKAL100_tUSBDeviceIDTableFooter *nNIKAL100_getUSBDeviceIDTableFooter(
-   const nLinux_usbDeviceID *entry)
-{
-   nNIKAL100_tUSBDeviceIDTableFooter *tableFooter;
-   nNIKAL100_tU32 i = 0;
-
-   
-   for (; (entry->match_flags != 0) ||
-          (entry->idVendor != 0) || (entry->idProduct != 0) || (entry->bcdDevice_lo != 0) || (entry->bcdDevice_hi != 0) ||
-          (entry->bDeviceClass != 0) || (entry->bDeviceSubClass != 0) || (entry->bDeviceProtocol != 0) ||
-          (entry->bInterfaceClass != 0) || (entry->bInterfaceSubClass != 0) || (entry->bInterfaceProtocol != 0);
-          ++entry)
-   {}
-
-   
-   ++i;
-   ++entry;
-   tableFooter = (nNIKAL100_tUSBDeviceIDTableFooter*)entry;
-   while (tableFooter->signature != nNIKAL100_kUSBDeviceIDTableFooterSignature)
-   {
-      ++i;
-      ++entry;
-      tableFooter = (nNIKAL100_tUSBDeviceIDTableFooter*)entry;
-   }
-   
-   return tableFooter;
-}
-
-
-static int nNIKAL100_usbProbe(nLinux_usbInterface *interface, const nLinux_usbDeviceID *id)
-{
-   int status;
-   nLinux_usbDevice  *usb_dev;
-   nNIKAL200_tDevice *device;
-
-   nNIKAL100_tUSBDeviceIDTableFooter* footer = nNIKAL100_getUSBDeviceIDTableFooter(id);
-
-   
-   device = nNIKAL200_constructDevice(footer->driver);
-
-   if (unlikely(!device)) {
-      status = -ENOMEM;
-      goto out;
-   }
-
-   usb_dev = interface_to_usbdev(interface);
-
-   
-   device->deviceInfo.osDevice = (void*) usb_dev;
-   device->deviceInfo.busType = nNIKAL100_kBusTypeUSB;
-   device->deviceInfo.version = 1;
-   device->deviceInfo.usb.deviceID.vendor         = usb_dev->descriptor.idVendor;
-   device->deviceInfo.usb.deviceID.product        = usb_dev->descriptor.idProduct;
-   device->deviceInfo.usb.deviceID.revision       = usb_dev->descriptor.bcdDevice;
-   device->deviceInfo.usb.deviceID.deviceClass    = usb_dev->descriptor.bDeviceClass;
-   device->deviceInfo.usb.deviceID.deviceSubClass = usb_dev->descriptor.bDeviceSubClass;
-   device->deviceInfo.usb.deviceID.deviceProtocol = usb_dev->descriptor.bDeviceProtocol;
-#ifdef nNIKAL100_kCurrentAlternateSetting
-   device->deviceInfo.usb.deviceID.interfaceClass    = interface->cur_altsetting->desc.bInterfaceClass;
-   device->deviceInfo.usb.deviceID.interfaceSubClass = interface->cur_altsetting->desc.bInterfaceSubClass;
-   device->deviceInfo.usb.deviceID.interfaceProtocol = interface->cur_altsetting->desc.bInterfaceProtocol;
-   device->deviceInfo.usb.interfaceNumber            = interface->cur_altsetting->desc.bInterfaceNumber;
-#else
-   device->deviceInfo.usb.deviceID.interfaceClass    = interface->altsetting[interface->act_altsetting].desc.bInterfaceClass;
-   device->deviceInfo.usb.deviceID.interfaceSubClass = interface->altsetting[interface->act_altsetting].desc.bInterfaceSubClass;
-   device->deviceInfo.usb.deviceID.interfaceProtocol = interface->altsetting[interface->act_altsetting].desc.bInterfaceProtocol;
-   device->deviceInfo.usb.interfaceNumber            = interface->altsetting[interface->act_altsetting].desc.bInterfaceNumber;
-#endif
-   device->deviceInfo.usb.parentDevice  = usb_dev;
-   device->deviceInfo.usb.deviceAddress = usb_dev->devnum;
-
-   switch (usb_dev->speed) {
-      case USB_SPEED_LOW:
-         device->deviceInfo.usb.connectionSpeed = nNIKAL120_kUSBSignallingSpeedLow;
-         break;
-      case USB_SPEED_FULL:
-         device->deviceInfo.usb.connectionSpeed = nNIKAL120_kUSBSignallingSpeedFull;
-         break;
-      case USB_SPEED_HIGH:
-         device->deviceInfo.usb.connectionSpeed = nNIKAL120_kUSBSignallingSpeedHigh;
-         break;
-      case USB_SPEED_UNKNOWN:
-      default:
-         device->deviceInfo.usb.connectionSpeed = nNIKAL120_kUSBSignallingSpeedUnknown;
-         break;
-   }
-
-   snprintf(device->nameString, sizeof(device->nameString), "%s", usb_dev->dev.bus_id);
-
-   status = nNIKAL200_createDeviceProcDirs(device->nameString, device);
-
-   if (nNIKAL100_statusIsFatal(status))
-      goto out_destruct;
-
-   
-   device->deviceExtension = device;
-
-   KAL_ASSERT(device->driver->addDevice);
-
-   status = device->driver->addDevice(&device->deviceInfo,
-                                      id->driver_info,
-                                      &device->deviceExtension);
-
-
-   if (nNIKAL100_statusIsFatal(status))
-      goto out_remove_proc;
-
-   device->addDeviceSuccess = 1;
-   usb_set_intfdata(interface, device);
-   usb_get_dev(usb_dev);
-
-#ifdef nNIKAL100_kUSBReferenceCountFunctions
-      /** Supposedly we are supposed to call this in order to refcount the device,
-       * but no existing drivers do, and the symbol isn't even exported from the
-       * kernel for modules to use...
-      usb_get_intf(interface);
-       **/
-#endif
-
-   return status;
-
-out_remove_proc:
-   nNIKAL200_destroyDeviceProcDirs(device);
-out_destruct:
-   nNIKAL200_destructDevice(&(device->kref));
-out:
-   return -ENODEV;
-}
-
-
-static void nNIKAL100_usbDisconnect(nLinux_usbInterface *interface)
-{
-   nNIKAL200_tDevice *d = usb_get_intfdata(interface);
-
-   KAL_ASSERT(d->driver->removeDevice);
-
-   d->driver->removeDevice(d->deviceExtension);
-
-   nNIKAL200_destroyDeviceProcDirs(d);
-
-   usb_put_dev(interface_to_usbdev(interface));
-#ifdef nNIKAL100_kUSBReferenceCountFunctions
-   /** Supposedly we are supposed to call this in order to refcount the device,
-    * but no existing drivers do, and the symbol isn't even exported from the
-    * kernel for modules to use...
-   usb_put_intf(interface);
-    **/
-#endif
-   usb_set_intfdata(interface, NULL);
-
-   kref_put(&(d->kref), nNIKAL200_destructDevice);
-}
-#endif
-
-
 nNIKAL100_cc void *nNIKAL100_registerUSBDriver(nNIKAL100_tDriver *driver,
    const nNIKAL100_tText *name, void *usbDevIdTable)
 {
-#if nNIKAL100_mUSBIsSupported
-   nNIKAL100_tUSBDeviceIDTableFooter* tableFooter =
-      (nNIKAL100_tUSBDeviceIDTableFooter*)usbDevIdTable;
-   nLinux_usbDriver *usbDriver;
-   int ret;
-
-   tableFooter->driver = driver;
-
-   usbDriver = nNIKAL100_malloc(sizeof(nLinux_usbDriver));
-   if (usbDriver == NULL)
-      return NULL;
-
-   memset(usbDriver, 0, sizeof(nLinux_usbDriver));
-
-   usbDriver->name = (char*)name;
-   usbDriver->probe = nNIKAL100_usbProbe;
-   usbDriver->disconnect = nNIKAL100_usbDisconnect;
-   usbDriver->ioctl = NULL;
-   usbDriver->suspend = NULL;
-   usbDriver->resume = NULL;
-   usbDriver->id_table = tableFooter->table;
-   ret = usb_register(usbDriver);
-   if (ret < 0)
-   {
-      nNIKAL100_free(usbDriver);
-      return NULL;
-   }
-
-   return usbDriver;
-#else
    return NULL;
-#endif
 }
 
 
 nNIKAL100_cc void nNIKAL100_unregisterUSBDriver(void *usbDriverData, const nNIKAL100_tText ** name,
    void **usbDevIdTable)
 {
-#if nNIKAL100_mUSBIsSupported
-   nLinux_usbDriver *usbDriver = (nLinux_usbDriver*)usbDriverData;
-   nNIKAL100_tUSBDeviceIDTableFooter* tableFooter =
-      nNIKAL100_getUSBDeviceIDTableFooter(usbDriver->id_table);
-   *name = usbDriver->name;
-   *usbDevIdTable = (void*)(tableFooter);
-   usb_deregister(usbDriver);
-   nNIKAL100_free(usbDriver);
-#else
-   
    KAL_ASSERT(!usbDriverData, "How did you get a non-NULL usb driver handle? "
                               "KAL doesn't support USB drivers with this kernel!\n");
-#endif
 }
 
 
 nNIKAL100_cc void *nNIKAL100_createUSBDeviceIDTable(nNIKAL100_tU32 size)
 {
-#if nNIKAL100_mUSBIsSupported
-   nNIKAL100_tText *buffer;
-   nNIKAL100_tUSBDeviceIDTableFooter *usbDeviceIDTableFooter;
-
-   
-   nNIKAL100_tU32 bufferSize = ((size+1)*sizeof(nLinux_usbDeviceID)) + sizeof(nNIKAL100_tUSBDeviceIDTableFooter);
-   buffer = (nNIKAL100_tText*)nNIKAL100_malloc(bufferSize);
-   if (buffer == NULL)
-      return NULL;
-
-   memset(buffer, 0, bufferSize);
-
-   
-   usbDeviceIDTableFooter = (nNIKAL100_tUSBDeviceIDTableFooter*)
-      (buffer + ((size+1)*sizeof(nLinux_usbDeviceID)));
-   usbDeviceIDTableFooter->signature = nNIKAL100_kUSBDeviceIDTableFooterSignature;
-   usbDeviceIDTableFooter->capacity = size;
-   usbDeviceIDTableFooter->size = 0;
-   usbDeviceIDTableFooter->driver = 0;
-   usbDeviceIDTableFooter->table = (nLinux_usbDeviceID*)buffer;
-   return (void*)usbDeviceIDTableFooter;
-#else
    return NULL;
-#endif
 }
 
 
@@ -5262,770 +4722,87 @@ nNIKAL100_cc void nNIKAL100_setUSBDeviceIDTableElement(void *usbDevIdTable,
    nNIKAL100_tU32 vendor, nNIKAL100_tU32 product,
    void *privateData)
 {
-#if nNIKAL100_mUSBIsSupported
-   nNIKAL100_tUSBDeviceIDTableFooter* tableFooter;
-   nLinux_usbDeviceID *idTable;
-   nNIKAL100_tU32 index;
-
-   KAL_ASSERT(usbDevIdTable != NULL, "usbDevIdTable must NOT be NULL!\n");
-
-   tableFooter = (nNIKAL100_tUSBDeviceIDTableFooter*)usbDevIdTable;
-   idTable = tableFooter->table;
-   index = tableFooter->size;
-
-   ++(tableFooter->size);
-   KAL_ASSERT(tableFooter->size <= tableFooter->capacity, "nNIKAL100_setUSBDeviceIDTableElement: usbDeviceIDTable size exceeds capacity\n");
-
-   if( vendor != 0xFFFF ) {
-      idTable[index].idVendor = vendor;
-      idTable[index].match_flags |= USB_DEVICE_ID_MATCH_VENDOR;
-   }
-   if( product != 0xFFFF ) {
-      idTable[index].idProduct = product;
-      idTable[index].match_flags |= USB_DEVICE_ID_MATCH_PRODUCT;
-   }
-
-
-
-   nNIKAL100_compileTimeAssert(sizeof(void*)==sizeof(unsigned long), "Oops, resizing void* into unsigned long!");
-   idTable[index].driver_info = (unsigned long)privateData;
-#else
-   
-#endif
 }
 
 
 nNIKAL100_cc void nNIKAL100_destroyUSBDeviceIDTable(void *usbDevIdTable)
 {
-#if nNIKAL100_mUSBIsSupported
-   nNIKAL100_tUSBDeviceIDTableFooter* tableFooter;
-   if(!usbDevIdTable) return;
-   tableFooter = (nNIKAL100_tUSBDeviceIDTableFooter*)usbDevIdTable;
-   nNIKAL100_free(tableFooter->table);
-#else
-   
-   KAL_ASSERT(usbDevIdTable == NULL, "How did you get a non-NULL usbDevIdTable?  We don't support it on 2.4 Kernels!\n");
-#endif
+   KAL_ASSERT(usbDevIdTable == NULL, "How did you get a non-NULL usbDevIdTable?\n");
 }
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbSynchronousControlRequest(void* osDevice, nNIKAL100_tUSBSetupPacket* setupPacket, void* data)
 {
-#if nNIKAL100_mUSBIsSupported
-   nNIKAL100_tStatus returnStatus;
-   int pipe;
-   if( ((setupPacket->bmRequestType) & USB_DIR_IN) == 0 )
-   {
-      pipe = usb_sndctrlpipe(osDevice, 0);
-   }
-   else
-   {
-      pipe = usb_rcvctrlpipe(osDevice, 0);
-   }
-   returnStatus = usb_control_msg( osDevice,
-                                   pipe,
-                                   setupPacket->bRequest,
-                                   setupPacket->bmRequestType,
-                                   setupPacket->wValue,
-                                   setupPacket->wIndex,
-                                   data,
-                                   setupPacket->wLength,
-                                   nNIKAL100_kUSBControlTimeout );
-
-   
-   if (returnStatus < 0)
-   {
-      KAL_DPRINT("usb_control_msg() returned %d\n", (int) returnStatus);
-      return nNIKAL100_convertLinuxToKALStatus(returnStatus);
-   }
-
-   return nNIKAL100_kStatusSuccess;
-
-#else
    return nNIKAL100_kStatusFeatureNotSupported;
-#endif
 }
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbGetDeviceDescriptor(void* osDevice, void* buffer, nNIKAL100_tU32 size)
 {
-#if nNIKAL100_mUSBIsSupported
-   nLinux_usbDevice* usbDevice = (nLinux_usbDevice*)osDevice;
-   nNIKAL100_tU32 bytesToCopy = nNIKAL100_mMin(size, usbDevice->descriptor.bLength);
-
-   memcpy(buffer, &(usbDevice->descriptor), bytesToCopy);
-   return nNIKAL100_kStatusSuccess;
-#else
    return nNIKAL100_kStatusFeatureNotSupported;
-#endif
 }
-
-#if nNIKAL100_mUSBIsSupported
-static nNIKAL100_tStatus nNIKAL100_usbFindConfigurationIndex(nLinux_usbDevice* usbDevice, nNIKAL100_tU8 configurationValue, nNIKAL100_tU8* configurationIndex)
-{
-   nNIKAL100_tU8 configIndex;
-
-   for(configIndex = 0; configIndex < usbDevice->descriptor.bNumConfigurations; ++configIndex)
-   {
-      if( usbDevice->config[configIndex].desc.bConfigurationValue == configurationValue )
-      {
-         *configurationIndex = configIndex;
-         return nNIKAL100_kStatusSuccess;
-      }
-   }
-   return nNIKAL100_kStatusBadSelector;
-}
-#endif
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbGetConfigurationDescriptor(void* osDevice, nNIKAL100_tU8 configurationValue, void* buffer, nNIKAL100_tU32 size)
 {
-#if nNIKAL100_mUSBIsSupported
-   nLinux_usbDevice* usbDevice = (nLinux_usbDevice*)osDevice;
-   nNIKAL100_tU8 configIndex;
-   nNIKAL100_tU32 bytesToCopy;
-
-   nNIKAL100_tStatus kalStatus = nNIKAL100_usbFindConfigurationIndex(usbDevice, configurationValue, &configIndex);
-   if( kalStatus != nNIKAL100_kStatusSuccess )
-   {
-      return kalStatus;
-   }
-
-   bytesToCopy = nNIKAL100_mMin(size, usbDevice->config[configIndex].desc.bLength);
-
-   memcpy(buffer, &(usbDevice->config[configIndex].desc), bytesToCopy);
-   return nNIKAL100_kStatusSuccess;
-#else
    return nNIKAL100_kStatusFeatureNotSupported;
-#endif
 }
-
-#ifdef nNIKAL100_kUSBInterfaceCacheMember
-#define nNIKAL100_kUSBInterfaceMember intf_cache
-#else
-#define nNIKAL100_kUSBInterfaceMember interface
-#endif
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbGetInterfaceDescriptor(void* osDevice, nNIKAL100_tU8 configurationValue,
    nNIKAL100_tU8 interfaceNumber, nNIKAL100_tU8 altSettingNumber, void* buffer, nNIKAL100_tU32 size)
 {
-#if nNIKAL100_mUSBIsSupported
-   nLinux_usbDevice* usbDevice = (nLinux_usbDevice*)osDevice;
-   nNIKAL100_tU8 configIndex;
-
-   nNIKAL100_tStatus kalStatus = nNIKAL100_usbFindConfigurationIndex(usbDevice, configurationValue, &configIndex);
-   if( kalStatus != nNIKAL100_kStatusSuccess )
-   {
-      return kalStatus;
-   }
-
-   if(
-      (interfaceNumber < usbDevice->config[configIndex].desc.bNumInterfaces) &&
-      (altSettingNumber < usbDevice->config[configIndex].nNIKAL100_kUSBInterfaceMember[interfaceNumber]->num_altsetting)
-     )
-   {
-      nNIKAL100_tU32 bytesToCopy = nNIKAL100_mMin(size, usbDevice->config[configIndex].nNIKAL100_kUSBInterfaceMember[interfaceNumber]->altsetting[altSettingNumber].desc.bLength);
-
-      memcpy(buffer, &(usbDevice->config[configIndex].nNIKAL100_kUSBInterfaceMember[interfaceNumber]->altsetting[altSettingNumber].desc), bytesToCopy);
-      return nNIKAL100_kStatusSuccess;
-   }
-   return nNIKAL100_kStatusBadSelector;
-#else
    return nNIKAL100_kStatusFeatureNotSupported;
-#endif
 }
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbGetEndpointDescriptor(void* osDevice, nNIKAL100_tU8 configurationValue,
    nNIKAL100_tU8 interfaceNumber, nNIKAL100_tU8 altSettingNumber, nNIKAL100_tU8 endpointIndex, void* buffer, nNIKAL100_tU32 size)
 {
-#if nNIKAL100_mUSBIsSupported
-   nLinux_usbDevice* usbDevice = (nLinux_usbDevice*)osDevice;
-   nNIKAL100_tU8 configIndex;
-
-   nNIKAL100_tStatus kalStatus = nNIKAL100_usbFindConfigurationIndex(usbDevice, configurationValue, &configIndex);
-   if( kalStatus != nNIKAL100_kStatusSuccess )
-   {
-      return kalStatus;
-   }
-
-   if(
-      (interfaceNumber < usbDevice->config[configIndex].desc.bNumInterfaces) &&
-      (altSettingNumber < usbDevice->config[configIndex].nNIKAL100_kUSBInterfaceMember[interfaceNumber]->num_altsetting)
-     )
-   {
-      nLinux_usbInterfaceDescriptorWrapper* hostInterface = &(usbDevice->config[configIndex].nNIKAL100_kUSBInterfaceMember[interfaceNumber]->altsetting[altSettingNumber]);
-      if( endpointIndex < hostInterface->desc.bNumEndpoints )
-      {
-         nNIKAL100_tU32 bytesToCopy = nNIKAL100_mMin(size, hostInterface->endpoint[endpointIndex].desc.bLength);
-
-         memcpy(buffer, &(hostInterface->endpoint[endpointIndex].desc), bytesToCopy);
-         return nNIKAL100_kStatusSuccess;
-      }
-   }
-   return nNIKAL100_kStatusBadSelector;
-#else
    return nNIKAL100_kStatusFeatureNotSupported;
-#endif
 }
-
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbSetConfiguration(void* osDevice, nNIKAL100_tU8 configurationValue)
 {
-#if nNIKAL100_mUSBIsSupported && defined(nNIKAL100_kUSBSetConfiguration)
-   int linuxStatus = usb_set_configuration( osDevice, configurationValue );
-
-   if (linuxStatus != 0)
-      KAL_DPRINT("usb_set_configuration returned %d\n", linuxStatus);
-
-   return nNIKAL100_convertLinuxToKALStatus(linuxStatus);
-#else
    return nNIKAL100_kStatusFeatureNotSupported;
-#endif
 }
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbGetConfiguration(void* osDevice, nNIKAL100_tU8* configurationValuePtr)
 {
-#if nNIKAL100_mUSBIsSupported
-   int returnStatus;
-   KAL_ASSERT(configurationValuePtr != NULL, "Invalid pointer parameter.\n");
-   returnStatus = usb_control_msg(  osDevice,
-                                    usb_rcvctrlpipe(osDevice, 0),
-                                    USB_REQ_GET_CONFIGURATION,
-                                    USB_DIR_IN | USB_TYPE_STANDARD | USB_RECIP_DEVICE,
-                                    0,
-                                    0,
-                                    configurationValuePtr,
-                                    1,
-                                    nNIKAL100_kUSBControlTimeout
-                                 );
-   if(returnStatus < 0)
-   {
-      KAL_DPRINT("usb_get_configuration() returned %d\n", (int)returnStatus);
-      return nNIKAL100_convertLinuxToKALStatus(returnStatus);
-   }
-   return nNIKAL100_kStatusSuccess;
-#else
    return nNIKAL100_kStatusFeatureNotSupported;
-#endif
 }
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbSetInterface(void* osDevice, nNIKAL100_tU8 interfaceNumber, nNIKAL100_tU8 alternateSetting)
 {
-#if nNIKAL100_mUSBIsSupported
-   int linuxStatus = usb_set_interface( osDevice, interfaceNumber, alternateSetting );
-   if( linuxStatus != 0 )
-   {
-      KAL_DPRINT("usb_set_interface returned %d\n", linuxStatus);
-   }
-   return nNIKAL100_convertLinuxToKALStatus(linuxStatus);
-#else
    return nNIKAL100_kStatusFeatureNotSupported;
-#endif
 }
 
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbGetInterface(void* osDevice, nNIKAL100_tU8 interfaceNumber, nNIKAL100_tU8* alternateSettingPtr)
 {
-#if nNIKAL100_mUSBIsSupported
-   int returnStatus;
-   KAL_ASSERT(alternateSettingPtr != NULL, "Invalid pointer parameter.\n");
-   returnStatus = usb_control_msg(  osDevice,
-                                    usb_rcvctrlpipe(osDevice, 0),
-                                    USB_REQ_GET_INTERFACE,
-                                    USB_DIR_IN | USB_TYPE_STANDARD | USB_RECIP_INTERFACE,
-                                    0,
-                                    interfaceNumber,
-                                    alternateSettingPtr,
-                                    1,
-                                    nNIKAL100_kUSBControlTimeout
-                                 );
-   if(returnStatus < 0)
-   {
-      KAL_DPRINT("usb_get_interface() returned %d\n", (int)returnStatus);
-      return nNIKAL100_convertLinuxToKALStatus(returnStatus);
-   }
-   return nNIKAL100_kStatusSuccess;
-#else
    return nNIKAL100_kStatusFeatureNotSupported;
-#endif
 }
 
 
 
 nNIKAL100_cc nNIKAL100_tURB* nNIKAL100_usbAllocateURB(nNIKAL100_tU32 numISODescriptors)
 {
-#if nNIKAL100_mUSBIsSupported
-   nNIKAL100_tURB* kalURB = (nNIKAL100_tURB*) nNIKAL100_malloc(sizeof(nNIKAL100_tURB) +
-                                                               numISODescriptors*sizeof(nNIKAL100_tUSBIsochronousPacketDescriptor));
-   if( kalURB != NULL )
-   {
-      kalURB->osURB = usb_alloc_urb(numISODescriptors, GFP_KERNEL);
-      if( kalURB->osURB != NULL )
-      {
-         if( numISODescriptors > 0 )
-         {
-            kalURB->isochronous.packetArray = (nNIKAL100_tUSBIsochronousPacketDescriptor*)((void*)kalURB + sizeof(nNIKAL100_tURB));
-         }
-         else
-         {
-            kalURB->isochronous.packetArray = NULL;
-         }
-
-#ifndef nNIKAL160_kWorkqueueNonDelay
-         kalURB->control.osWorkItem = nNIKAL100_malloc(sizeof(nNIKAL100_tWorkQueue));
-#else
-         kalURB->control.osWorkItem = nNIKAL100_malloc(sizeof(nNIKAL160_tWorkItemWithDataPointer));
-#endif
-         if( kalURB->control.osWorkItem != NULL )
-         {
-            /** KAL_DPRINT("--> nNIKAL100_usbAllocateURB: Allocated URB 0x%p\n", kalURB->osURB); **/
-#ifdef nNIKAL160_kWorkqueueNonDelay
-            nNIKAL160_tWorkItemWithDataPointer* tmp_ptr = (nNIKAL160_tWorkItemWithDataPointer*)kalURB->control.osWorkItem;
-            tmp_ptr->data = (void *)kalURB;
-#endif
-            return kalURB; 
-         }
-
-         
-         usb_free_urb((nLinux_urb*)kalURB->osURB);
-      }
-      nNIKAL100_free(kalURB);
-   }
    return NULL;
-#else
-   return NULL;
-#endif
 }
 
 
 
 nNIKAL100_cc void nNIKAL100_usbFreeURB(nNIKAL100_tURB* kalURB)
 {
-#if nNIKAL100_mUSBIsSupported
-   if( kalURB == NULL ) return;
-   /** KAL_DPRINT("<-- nNIKAL100_usbFreeURB: Freeing URB 0x%p\n", kalURB->osURB); **/
-   kfree(kalURB->control.osWorkItem);
-   usb_free_urb((nLinux_urb*)kalURB->osURB);
-   nNIKAL100_free(kalURB);
-#else
-   
-   KAL_ASSERT(kalURB == NULL, "How did you get a non-NULL kalURB?  We don't support it on 2.4 Kernels!\n");
-#endif
+   KAL_ASSERT(kalURB == NULL, "How did you get a non-NULL kalURB?\n");
 }
 
-
-
-#if nNIKAL100_mUSBIsSupported
-static void nNIKAL100_usbAsynchronousURBCallback(struct urb* osURB)
-{
-   nNIKAL100_tURB* kalURB;
-
-   KAL_ASSERT(osURB != NULL, "Got a callback for a NULL osURB!\n");
-
-   kalURB = (nNIKAL100_tURB*)osURB->context;
-
-   KAL_ASSERT(kalURB != NULL, "Got a callback for a NULL kalURB!\n");
-   KAL_ASSERT(kalURB->callback != NULL, "Got a callback for a NULL kalURB->callback!\n");
-
-   kalURB->ioStatus = nNIKAL100_convertLinuxToKALStatus(osURB->status);
-   kalURB->transferCount = osURB->actual_length;
-
-   /** KAL_DPRINT("<----- nNIKAL100_usbAsynchronousURBCallback: URB 0x%p is complete\n", osURB); **/
-   kalURB->callback(kalURB);
-}
-
-static void nNIKAL100_usbIsochronousURBCallback(struct urb* osURB)
-{
-   nNIKAL100_tURB* kalURB;
-   nNIKAL100_tU32 packetIndex;
-
-   KAL_ASSERT(osURB != NULL, "Got a callback for a NULL osURB!\n");
-
-   kalURB = (nNIKAL100_tURB*)osURB->context;
-
-   KAL_ASSERT(kalURB != NULL, "Got a callback for a NULL kalURB!\n");
-   KAL_ASSERT(kalURB->callback != NULL, "Got a callback for a NULL kalURB->callback!\n");
-
-   kalURB = (nNIKAL100_tURB*)osURB->context;
-   kalURB->ioStatus = nNIKAL100_convertLinuxToKALStatus(osURB->status);
-   kalURB->transferCount = osURB->actual_length;
-   kalURB->isochronous.startFrame = osURB->start_frame;
-   kalURB->isochronous.numberOfErrors = osURB->error_count;
-
-   for ( packetIndex = 0; packetIndex < kalURB->isochronous.numberOfPackets; ++packetIndex) {
-      kalURB->isochronous.packetArray[packetIndex].ioStatus = osURB->iso_frame_desc[packetIndex].status;
-      kalURB->isochronous.packetArray[packetIndex].packetTransferCount = osURB->iso_frame_desc[packetIndex].actual_length;
-   }
-   /** KAL_DPRINT("<----- nNIKAL100_usbIsochronousURBCallback: URB 0x%p is complete\n", osURB); **/
-   kalURB->callback(kalURB);
-}
-
-static void nNIKAL100_buildControlURB(nLinux_usbDevice* usbDevice, nNIKAL100_tURB* kalURB, nLinux_urb* osURB)
-{
-   unsigned int pipe;
-
-   
-   if( (kalURB->transferFlags & nNIKAL100_kUSBTransferFlagDirection) == 0)
-   {
-      pipe = usb_sndctrlpipe(usbDevice,kalURB->endpoint & USB_ENDPOINT_NUMBER_MASK);
-   }
-   else
-   {
-      pipe = usb_rcvctrlpipe(usbDevice,kalURB->endpoint & USB_ENDPOINT_NUMBER_MASK);
-   }
-
-   usb_fill_control_urb(
-      osURB,
-      usbDevice,
-      pipe,
-      (unsigned char*)&kalURB->control.setupPacket,
-      kalURB->buffer,
-      kalURB->bufferSize,
-      nNIKAL100_usbAsynchronousURBCallback,
-      kalURB
-      );
-}
-
-static void nNIKAL100_buildBulkURB(nLinux_usbDevice* usbDevice, nNIKAL100_tURB* kalURB, nLinux_urb* osURB)
-{
-   unsigned int pipe;
-
-   
-   if( (kalURB->transferFlags & nNIKAL100_kUSBTransferFlagDirection) == 0)
-   {
-      pipe = usb_sndbulkpipe(usbDevice,kalURB->endpoint & USB_ENDPOINT_NUMBER_MASK);
-   }
-   else
-   {
-      pipe = usb_rcvbulkpipe(usbDevice,kalURB->endpoint & USB_ENDPOINT_NUMBER_MASK);
-   }
-
-   usb_fill_bulk_urb(
-      osURB,
-      usbDevice,
-      pipe,
-      kalURB->buffer,
-      kalURB->bufferSize,
-      nNIKAL100_usbAsynchronousURBCallback,
-      kalURB
-      );
-}
-
-
-nLinux_usbEndpointDescriptor* nNIKAL100_usbEndpointAddressToEndpointDescriptor(nLinux_usbDevice* usbDevice, nNIKAL100_tU32 endpoint)
-{
-   nLinux_usbEndpointDescriptor* endpointDesc;
-
-   
-#ifdef nNIKAL100_kUSBDeviceEndpointArray
-   nLinux_usbEndpointDescriptorWrapper* endpointDescWrapper;
-
-   if( (endpoint & USB_ENDPOINT_DIR_MASK) == 0)
-   {
-      endpointDescWrapper = usbDevice->ep_out[endpoint & USB_ENDPOINT_NUMBER_MASK];
-      KAL_ASSERT( endpointDescWrapper != NULL, "No matching ep_out found on the specified interface.\n");
-      endpointDesc = &(endpointDescWrapper->desc);
-   }
-   else
-   {
-      endpointDescWrapper = usbDevice->ep_in[endpoint & USB_ENDPOINT_NUMBER_MASK];
-      KAL_ASSERT( endpointDescWrapper != NULL, "No matching ep_in found on the specified interface.\n");
-      endpointDesc = &(endpointDescWrapper->desc);
-   }
-#else
-   endpointDesc = usb_epnum_to_ep_desc(usbDevice, endpoint);
-   KAL_ASSERT( endpointDesc != NULL, "No matching endpoint found on the specified interface.\n");
-#endif
-   return endpointDesc;
-}
-
-static void nNIKAL100_buildInterruptURB(nLinux_usbDevice* usbDevice, nNIKAL100_tURB* kalURB, nLinux_urb* osURB)
-{
-   unsigned int pipe;
-
-   nLinux_usbEndpointDescriptor* endpointDesc;
-
-   
-   if( (kalURB->transferFlags & nNIKAL100_kUSBTransferFlagDirection) == 0)
-   {
-      pipe = usb_sndintpipe(usbDevice,kalURB->endpoint & USB_ENDPOINT_NUMBER_MASK);
-   }
-   else
-   {
-      pipe = usb_rcvintpipe(usbDevice,kalURB->endpoint & USB_ENDPOINT_NUMBER_MASK);
-   }
-
-   osURB->dev                    = usbDevice;
-   osURB->pipe                   = pipe;
-   osURB->transfer_buffer        = kalURB->buffer;
-   osURB->transfer_buffer_length = kalURB->bufferSize;
-   osURB->complete               = nNIKAL100_usbAsynchronousURBCallback;
-   osURB->context                = kalURB;
-
-   endpointDesc = nNIKAL100_usbEndpointAddressToEndpointDescriptor(usbDevice, kalURB->endpoint);
-
-   KAL_ASSERT(
-      USB_ENDPOINT_XFER_INT == ((endpointDesc->bmAttributes) & USB_ENDPOINT_XFERTYPE_MASK),
-      "This is not an interrupt endpoint.\n");
-   if( usbDevice->speed == USB_SPEED_HIGH )
-   {
-      osURB->interval = 1 << min(15, endpointDesc->bInterval - 1);
-   }
-   else
-   {
-      osURB->interval = endpointDesc->bInterval;
-   }
-
-   KAL_ASSERT( osURB->interval != 0, "Invalid interval for Interrupt transfer.\n");
-}
-
-static void nNIKAL100_buildIsochronousURB(nLinux_usbDevice* usbDevice, nNIKAL100_tURB* kalURB, nLinux_urb* osURB)
-{
-   unsigned int pipe;
-
-   nLinux_usbEndpointDescriptor *endpointDesc;
-   nNIKAL100_tU32 packetIndex;
-
-   
-   if( (kalURB->transferFlags & nNIKAL100_kUSBTransferFlagDirection) == 0)
-   {
-      pipe = usb_sndisocpipe(usbDevice,kalURB->endpoint & USB_ENDPOINT_NUMBER_MASK);
-   }
-   else
-   {
-      pipe = usb_rcvisocpipe(usbDevice,kalURB->endpoint & USB_ENDPOINT_NUMBER_MASK);
-   }
-
-   osURB->dev                    = usbDevice;
-   osURB->pipe                   = pipe;
-   osURB->transfer_buffer        = kalURB->buffer;
-   osURB->transfer_buffer_length = kalURB->bufferSize;
-   osURB->complete               = nNIKAL100_usbIsochronousURBCallback;
-   osURB->context                = kalURB;
-
-   endpointDesc = nNIKAL100_usbEndpointAddressToEndpointDescriptor(usbDevice, kalURB->endpoint);
-
-   KAL_ASSERT(
-      USB_ENDPOINT_XFER_ISOC == ((endpointDesc->bmAttributes) & USB_ENDPOINT_XFERTYPE_MASK),
-      "This is not an isochronous endpoint.\n");
-   if( usbDevice->speed == USB_SPEED_HIGH )
-   {
-      osURB->interval = 1 << min(15, endpointDesc->bInterval - 1);
-   }
-   else
-   {
-      osURB->interval = endpointDesc->bInterval;
-   }
-
-   KAL_ASSERT( osURB->interval != 0, "Invalid interval for Isochronous transfer.\n");
-
-   
-   if( kalURB->transferFlags & nNIKAL100_kUSBTransferFlagStartISOTransferASAP )
-   {
-      osURB->transfer_flags = URB_ISO_ASAP;
-   }
-   else
-   {
-      osURB->start_frame = kalURB->isochronous.startFrame;
-   }
-
-   osURB->number_of_packets = kalURB->isochronous.numberOfPackets;
-
-   for ( packetIndex = 0; packetIndex < kalURB->isochronous.numberOfPackets; ++packetIndex) {
-      osURB->iso_frame_desc[packetIndex].offset = kalURB->isochronous.packetArray[packetIndex].packetOffset;
-      osURB->iso_frame_desc[packetIndex].length = kalURB->isochronous.packetArray[packetIndex].packetLength;
-   }
-}
-
-static void nNIKAL100_usbClearHaltSynchronous(void *params)
-{
-#ifndef nNIKAL160_kWorkqueueNonDelay
-   nNIKAL100_tURB *kalURB = (nNIKAL100_tURB*)params;
-#else
-   nNIKAL160_tWorkItemWithDataPointer* tmp_ptr = (nNIKAL160_tWorkItemWithDataPointer*)params;
-   nNIKAL100_tURB *kalURB = (nNIKAL100_tURB *)tmp_ptr->data;
-#endif
-   nLinux_usbDevice* usbDevice = (nLinux_usbDevice*)kalURB->osDeviceObject;
-   nNIKAL100_tU32 endpointToClear;
-   nLinux_usbEndpointDescriptor* endpointDesc;
-   int pipe = 0;
-   int status;
-
-   endpointToClear = kalURB->control.setupPacket.wIndex;
-   endpointDesc = nNIKAL100_usbEndpointAddressToEndpointDescriptor(usbDevice, endpointToClear);
-
-   switch ((endpointDesc->bmAttributes) & USB_ENDPOINT_XFERTYPE_MASK)
-   {
-      case USB_ENDPOINT_XFER_CONTROL:
-         if( (endpointToClear & USB_ENDPOINT_DIR_MASK) == 0)
-         {
-            pipe = usb_sndctrlpipe(usbDevice,endpointToClear & USB_ENDPOINT_NUMBER_MASK);
-         }
-         else
-         {
-            pipe = usb_rcvctrlpipe(usbDevice,endpointToClear & USB_ENDPOINT_NUMBER_MASK);
-         }
-         break;
-      case USB_ENDPOINT_XFER_BULK:
-         if( (endpointToClear & USB_ENDPOINT_DIR_MASK) == 0)
-         {
-            pipe = usb_sndbulkpipe(usbDevice,endpointToClear & USB_ENDPOINT_NUMBER_MASK);
-         }
-         else
-         {
-            pipe = usb_rcvbulkpipe(usbDevice,endpointToClear & USB_ENDPOINT_NUMBER_MASK);
-         }
-         break;
-      case USB_ENDPOINT_XFER_ISOC:
-         if( (endpointToClear & USB_ENDPOINT_DIR_MASK) == 0)
-         {
-            pipe = usb_sndisocpipe(usbDevice,endpointToClear & USB_ENDPOINT_NUMBER_MASK);
-         }
-         else
-         {
-            pipe = usb_rcvisocpipe(usbDevice,endpointToClear & USB_ENDPOINT_NUMBER_MASK);
-         }
-         break;
-      case USB_ENDPOINT_XFER_INT:
-         if( (endpointToClear & USB_ENDPOINT_DIR_MASK) == 0)
-         {
-            pipe = usb_sndintpipe(usbDevice,endpointToClear & USB_ENDPOINT_NUMBER_MASK);
-         }
-         else
-         {
-            pipe = usb_rcvintpipe(usbDevice,endpointToClear & USB_ENDPOINT_NUMBER_MASK);
-         }
-         break;
-   }
-
-   status = usb_clear_halt (usbDevice, pipe);
-
-   kalURB->ioStatus = nNIKAL100_convertLinuxToKALStatus(status);
-   kalURB->transferCount = 0;
-   kalURB->callback(kalURB);
-}
-
-static nNIKAL100_tStatus nNIKAL100_usbClearHaltAsync(nNIKAL100_tURB* kalURB)
-{
-   int isScheduleSuccess;
-
-#ifndef nNIKAL160_kWorkqueueNonDelay
-   nNIKAL100_mInitWorkQueue((nNIKAL100_tWorkQueue*)(kalURB->control.osWorkItem),
-      nNIKAL100_usbClearHaltSynchronous, kalURB);
-#else
-   nNIKAL100_mInitWorkQueue((nNIKAL100_tWorkQueue*)(kalURB->control.osWorkItem),
-      (tFuncWithWorkQueuePtrParam)&nNIKAL100_usbClearHaltSynchronous);
-#endif
-   isScheduleSuccess = nNIKAL100_mScheduleWorkQueue(
-      (nNIKAL100_tWorkQueue*)(kalURB->control.osWorkItem));
-
-   
-   KAL_ASSERT(isScheduleSuccess, "Failed to schedule a work item that's just initialized\n");
-
-   return nNIKAL100_kStatusSuccess;
-}
-#endif
 
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbSubmitURB(nNIKAL100_tURB* kalURB)
 {
-#if nNIKAL100_mUSBIsSupported
-   nLinux_usbDevice* usbDevice;
-   nLinux_urb* osURB;
-   int returnStatus;
-
-   KAL_ASSERT(kalURB != NULL, "Trying to submit a NULL kalURB!\n");
-   KAL_ASSERT(kalURB->osURB != NULL, "Trying to submit a NULL osURB!\n");
-   KAL_ASSERT(kalURB->osDeviceObject != NULL, "Trying to submit a URB with a NULL osDeviceObject!\n");
-   KAL_ASSERT(kalURB->callback != NULL, "Trying to submit a URB with a NULL callback!\n");
-
-   usbDevice = (nLinux_usbDevice*)kalURB->osDeviceObject;
-   osURB = (nLinux_urb*)kalURB->osURB;
-
-   switch(kalURB->transferType)
-   {
-      case nNIKAL100_kUSBTransferTypeControl:
-      {
-         if((kalURB->control.setupPacket.bRequest == USB_REQ_CLEAR_FEATURE) &&
-            (kalURB->control.setupPacket.bmRequestType == USB_RECIP_ENDPOINT) &&
-            (kalURB->control.setupPacket.wValue == 0 /** ENDPOINT_HALT **/))
-         {
-            
-            
-            return nNIKAL100_usbClearHaltAsync(kalURB);
-         }
-         else
-         {
-            nNIKAL100_buildControlURB(usbDevice, kalURB, osURB);
-         }
-         break;
-      }
-      case nNIKAL100_kUSBTransferTypeBulk:
-      {
-         nNIKAL100_buildBulkURB(usbDevice, kalURB, osURB);
-         break;
-      }
-      case nNIKAL100_kUSBTransferTypeInterrupt:
-      {
-         nNIKAL100_buildInterruptURB(usbDevice, kalURB, osURB);
-         break;
-      }
-      case nNIKAL100_kUSBTransferTypeIsochronous:
-      {
-         nNIKAL100_buildIsochronousURB(usbDevice, kalURB, osURB);
-         break;
-      }
-      default:
-         KAL_ASSERT(0, "Invalid USB transfer type\n");
-         break;
-   }
-
-   /** KAL_DPRINT("-----> nNIKAL100_usbSubmitURB: Submitted URB 0x%p\n", osURB); **/
-   #ifdef nNIKAL130_kURBAsyncUnlink
-      osURB->transfer_flags |= URB_ASYNC_UNLINK;
-   #endif
-   osURB->status = 0;
-   /** KAL_DPRINT("usb_submit_urb(\n   pipe = 0x%8.8x\n   buffer = 0x%p\n   buffer_size = %d\n   interval = %d\n)\n", osURB->pipe, osURB->transfer_buffer, osURB->transfer_buffer_length, osURB->interval); **/
-   returnStatus = usb_submit_urb(osURB, GFP_ATOMIC);
-
-   
-   if(returnStatus != 0)
-   {
-      KAL_DPRINT("usb_submit_urb() returned %d\n", returnStatus);
-      kalURB->ioStatus = nNIKAL100_convertLinuxToKALStatus(returnStatus);
-      kalURB->transferCount = 0;
-      kalURB->callback(kalURB);
-   }
-
-   return nNIKAL100_convertLinuxToKALStatus(returnStatus);
-#else
-   
    return nNIKAL100_kStatusFeatureNotSupported;
-#endif
 }
 
 
 nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbUnlinkURB(nNIKAL100_tURB* kalURB)
 {
-#if nNIKAL100_mUSBIsSupported
-   int unlinkStatus;
-
-   KAL_ASSERT(kalURB != NULL, "Trying to unlink a NULL kal URB!\n");
-   KAL_ASSERT(kalURB->osURB != NULL, "Trying to unlink a NULL OS URB!\n");
-   #ifdef nNIKAL130_kURBAsyncUnlink
-      KAL_ASSERT( ((nLinux_urb*)kalURB->osURB)->transfer_flags & URB_ASYNC_UNLINK, "The URB is going to be unlinked synchronously?\n");
-   #endif
-
-   /** KAL_DPRINT("++++++ nNIKAL100_usbUnlinkURB: URB 0x%p is being unlinked\n", kalURB->osURB); **/
-
-   unlinkStatus = usb_unlink_urb((nLinux_urb*)kalURB->osURB);
-   if( unlinkStatus != -EINPROGRESS )
-   {
-      KAL_DPRINT("nNIKAL100_usbUnlinkURB(): usb_unlink_urb(%p) returned %d\n", (nLinux_urb*)kalURB->osURB, unlinkStatus);
-   }
-   
-   return nNIKAL100_kStatusSuccess;
-#else
-   
    return nNIKAL100_kStatusFeatureNotSupported;
-#endif
 }
 
 
@@ -6396,7 +5173,7 @@ static unsigned long translateInterruptHandlerFlags(nNIKAL100_tU32 flags)
    unsigned long kflags = 0;
    if (flags & nNIKAL1400_kInterruptFlagShared)
    {
-      kflags |= NIKAL_IRQ_SHARED;
+      kflags |= IRQF_SHARED;
    }
    if (flags & nNIKAL1400_kInterruptFlagNoSoftIrqCall)
    {
@@ -6527,27 +5304,14 @@ nNIKAL100_cc void __iomem * nNIKAL230_mapPhysicalToKernel (nNIKAL100_tU64 physic
                                                            size_t size,
                                                            unsigned long flags)
 {
-#ifdef nNIKAL230_kHas_ioremap_wc
    if (flags & nNIKAL230_kPhysMemFlagWriteCombined)
    {
       return ioremap_wc(physicalAddress, size);
    }
-#endif
 
-   
    if (flags & nNIKAL1750_kPhysMemFlagCache)
    {
-#if defined(ioremap_cache)
       return ioremap_cache(physicalAddress, size);
-#elif defined(ioremap_cached)
-      return ioremap_cached(physicalAddress, size);
-#elif (defined(__i386__) || defined(__x86_64__) || defined(__arm64__) || defined(__mips__))
-      return ioremap_cache(physicalAddress, size);
-#elif defined(__arm__)
-      return ioremap_cached(physicalAddress, size);
-#else
-#error "Unsupported combination"
-#endif
    }
    return ioremap(physicalAddress, size);
 }
@@ -6943,11 +5707,7 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_pageUnlockUserPointer(nNIKAL100_tMemPag
 {
    down(&nNIKAL100_sPageLockOperationSema);
 
-   
-#if !defined(CONFIG_CPU_R4K_CACHE_TLB)
    flush_cache_all();
-#endif
-
    vunmap(pageLockToken->pageLockedPointer);
    nNIKAL100_unsetVMANoCopy(pageLockToken);
    nNIKAL100_unmapUserKIOBuf(pageLockToken->pageLockDescriptor);
@@ -6985,7 +5745,7 @@ nNIKAL100_cc nNIKAL100_tUPtr nNIKAL120_checkStackUsage(void)
 }
 
 
-static nNIKAL220_tPageList *nNIKAL220_tPageList_allocContiguous(size_t pages, unsigned long flags)
+static nNIKAL220_tPageList *nNIKAL220_tPageList_allocContiguous(size_t pages, unsigned long flags, int numaNode)
 {
    unsigned int order;
    nNIKAL220_tPageList *list = nNIKAL100_malloc(sizeof(*list) + sizeof(struct page*));
@@ -7006,8 +5766,7 @@ static nNIKAL220_tPageList *nNIKAL220_tPageList_allocContiguous(size_t pages, un
 
    list->flags     = flags;
    list->num_pages = 1 << order;
-   list->pages[0]  = alloc_pages(gfp_mask, order);
-
+   list->pages[0]  = alloc_pages_node(numaNode, gfp_mask, order);
    if (!list->pages[0]) {
       nNIKAL100_free(list);
       return NULL;
@@ -7016,7 +5775,7 @@ static nNIKAL220_tPageList *nNIKAL220_tPageList_allocContiguous(size_t pages, un
    return list;
 }
 
-static nNIKAL220_tPageList *nNIKAL220_tPageList_allocNonContiguous(size_t pages, unsigned long flags)
+static nNIKAL220_tPageList *nNIKAL220_tPageList_allocNonContiguous(size_t pages, unsigned long flags, int numaNode)
 {
    int i;
    nNIKAL220_tPageList *list;
@@ -7036,7 +5795,7 @@ static nNIKAL220_tPageList *nNIKAL220_tPageList_allocNonContiguous(size_t pages,
    list->num_pages = pages;
 
    for (i=0; i<pages; i++) {
-      list->pages[i] = alloc_page(gfp_mask);
+      list->pages[i] = alloc_pages_node(numaNode, gfp_mask, 0);
 
       if (unlikely(!list->pages[i]))
          goto failed_page;
@@ -7054,9 +5813,23 @@ failed_page:
 nNIKAL100_cc nNIKAL220_tPageList *nNIKAL220_tPageList_createFromAllocation(size_t pages, unsigned long flags)
 {
    if (flags & nNIKAL220_kPageListContiguous)
-      return nNIKAL220_tPageList_allocContiguous(pages, flags);
+      return nNIKAL220_tPageList_allocContiguous(pages, flags, NUMA_NO_NODE);
    else
-      return nNIKAL220_tPageList_allocNonContiguous(pages, flags);
+      return nNIKAL220_tPageList_allocNonContiguous(pages, flags, NUMA_NO_NODE);
+}
+
+nNIKAL100_cc nNIKAL220_tPageList *nNIKAL1_tPageList_createFromAllocationNUMA(size_t pages, unsigned long flags, int numaNode)
+{
+#ifndef CONFIG_NUMA
+   return nNIKAL220_tPageList_createFromAllocation(pages, flags);
+#else
+   if (numaNode == nNIKAL1_kNUMANodeUnspecified)
+      numaNode = NUMA_NO_NODE;
+   if (flags & nNIKAL220_kPageListContiguous)
+      return nNIKAL220_tPageList_allocContiguous(pages, flags, numaNode);
+   else
+      return nNIKAL220_tPageList_allocNonContiguous(pages, flags, numaNode);
+#endif
 }
 
 
@@ -7082,6 +5855,20 @@ nNIKAL100_cc void nNIKAL220_tPageList_destroy(nNIKAL220_tPageList *list)
    }
 
    nNIKAL100_free(list);
+}
+
+nNIKAL100_cc nNIKAL100_tI32 nNIKAL1_getDeviceNUMANode(const nNIKAL100_tDeviceInfo* deviceInfo)
+{
+#ifdef CONFIG_NUMA
+   if (unlikely(deviceInfo == NULL))
+      return nNIKAL1_kNUMANodeUnspecified;
+   if (deviceInfo->busType == nNIKAL100_kBusTypePCI)
+   {
+      nLinux_pciDevice* device = deviceInfo->osDevice;
+      return device->dev.numa_node;
+   }
+#endif
+   return nNIKAL1_kNUMANodeUnspecified;
 }
 
 
@@ -7162,9 +5949,7 @@ nNIKAL100_cc nNIKAL220_tPageList *nNIKAL220_tPageList_createFromUser(void __user
    pinned = nNIKAL1600_currentTaskGetUserPages((unsigned long) pointer,
                            size,
                            flags & nNIKAL220_kPageListAccessModeWrite,
-                           0, 
-                           list->pages,
-                           NULL );
+                           list->pages);
    up_read(&current->mm->mmap_sem);
 
    if (pinned < 0)
@@ -7404,13 +6189,7 @@ nNIKAL100_cc nNIKAL220_tSGL *nNIKAL220_tSGL_createForPCI(void *osDevice, size_t 
 static void nNIKAL220_tSGL_setPage(struct scatterlist *sg, struct page *pg, size_t sizeInBytes, size_t offsetInBytes)
 {
    KAL_ASSERT(sg != NULL);
-#if defined(nNIKAL220_kHasSGLPageAPI)
    sg_set_page(sg, pg, sizeInBytes, offsetInBytes);
-#else
-   sg->page = pg;
-   sg->offset = offsetInBytes;
-   sg->length = sizeInBytes;
-#endif
 }
 
 static inline void nNIKAL220_tSGL_unmarkEnd(struct scatterlist *sg)
@@ -7422,14 +6201,7 @@ static inline void nNIKAL220_tSGL_unmarkEnd(struct scatterlist *sg)
 static struct scatterlist *nNIKAL220_tSGL_nextSG(nNIKAL220_tSGL *kalSgl, struct scatterlist *sg)
 {
    KAL_ASSERT(sg != NULL);
-#if defined(nNIKAL220_kHasSGLPageAPI)
    return sg_next(sg);
-#else
-   if (sg_is_last(sg)) return NULL;
-   ++sg;
-   if (sg >= (kalSgl->table.sgl + kalSgl->table.orig_nents)) return NULL;
-   else return sg;
-#endif
 }
 
 
@@ -7594,24 +6366,12 @@ nNIKAL100_cc void nNIKAL220_tSGL_destroy(nNIKAL220_tSGL *sgl)
 
 nNIKAL100_cc nNIKAL100_tU32 nNIKAL230_getCurrentEffectiveUserID(void)
 {
-#ifdef nNIKAL230_kHasCred
-   #ifdef nNIKAL1400_kHasUidGid
    return from_kuid(current_user_ns(), current_euid());
-   #else
-   return current_euid();
-   #endif
-#else
-   return current->euid;
-#endif
 }
 
 nNIKAL100_cc void* nNIKAL250_createKernelSocketBuffer(size_t sizeInBytes)
 {
-#ifdef nNIKAL250_kHasGenlmsgNew
    return genlmsg_new(sizeInBytes, GFP_ATOMIC);
-#else
-   return alloc_skb(NLMSG_ALIGN(NLMSG_HDRLEN + (NLMSG_ALIGN(GENL_HDRLEN + sizeInBytes))), GFP_ATOMIC);
-#endif
 }
 
 nNIKAL100_cc void nNIKAL250_releaseKernelSocketBuffer(void *socketBuffer)
@@ -7629,21 +6389,14 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL250_kernelSocketSend(void *socketBuffer,
    void *header;
    int error;
    KAL_ASSERT(sizeInBytes < INT_MAX);
-#ifdef nNIKAL250_kHasFamilyGenlmsgPut
+
    header = genlmsg_put(skb, pid, 0, &nikal_netlink_family, 0, NLNIKAL_CMD_SEND);
-#else
-   header = genlmsg_put(skb, pid, 0, nikal_netlink_family.id, nikal_netlink_family.hdrsize, 0, NLNIKAL_CMD_SEND, nikal_netlink_family.version);
-#endif
    if (unlikely(header == NULL) || (unlikely(nla_put(skb, attribute, sizeInBytes, message))))
    {
       return nNIKAL100_kStatusMemoryFull;
    }
    genlmsg_end(skb, header);
-#ifdef nNIKAL250_kHasNamespacedGenetlink
    error = genlmsg_unicast(&init_net, skb, pid);
-#else
-   error = genlmsg_unicast(skb, pid);
-#endif
    return nNIKAL100_convertLinuxToKALStatus(error);
 }
 
@@ -7651,7 +6404,6 @@ nNIKAL100_cc nNIKAL100_tStatus nNIKAL250_kernelSocketSend(void *socketBuffer,
 
 nNIKAL100_cc void *nNIKAL100_registerSerialCoreDriver(nNIKAL100_tSerialCoreDriverData *driverData)
 {
-#if nNIKAL100_mSerialCoreIsSupported
    int retVal;
    nLinux_uartDriver *uartDriver;
 
@@ -7692,15 +6444,11 @@ nNIKAL100_cc void *nNIKAL100_registerSerialCoreDriver(nNIKAL100_tSerialCoreDrive
    KAL_DPRINT("Registered driver with serial core (handle: %p)\n", uartDriver);
 
    return uartDriver;
-#else
-   return NULL;
-#endif
 }
 
 
 nNIKAL100_cc void nNIKAL100_unregisterSerialCoreDriver(void *driver)
 {
-#if nNIKAL100_mSerialCoreIsSupported
    nLinux_uartDriver *uartDriver;
 
    KAL_ASSERT(driver != NULL);
@@ -7712,14 +6460,12 @@ nNIKAL100_cc void nNIKAL100_unregisterSerialCoreDriver(void *driver)
    KAL_DPRINT("Unregistered driver (handle: %p) from serial core\n", driver);
 
    nNIKAL100_free(uartDriver);
-#endif
 }
 
 
 
 nNIKAL100_cc void *nNIKAL100_addOneSerialPort(void *driver, nNIKAL100_tSerialCorePortData *portData, nNIKAL100_tSerialCoreTxBuffer *txBuffer)
 {
-#if nNIKAL100_mSerialCoreIsSupported
    int retVal;
    nLinux_uartPort *uartPort;
    nLinux_uartDriver *uartDriver;
@@ -7787,15 +6533,11 @@ nNIKAL100_cc void *nNIKAL100_addOneSerialPort(void *driver, nNIKAL100_tSerialCor
    KAL_DPRINT("Added a new port (driver handle: %p, port handle: %p)\n", driver, uartPort);
 
    return uartPort;
-#else
-   return NULL;
-#endif
 }
 
 
 nNIKAL100_cc void nNIKAL100_removeOneSerialPort(void *driver, void *port)
 {
-#if nNIKAL100_mSerialCoreIsSupported
    nLinux_uartDriver *uartDriver;
    nLinux_uartPort *uartPort;
    int retVal;
@@ -7818,13 +6560,11 @@ nNIKAL100_cc void nNIKAL100_removeOneSerialPort(void *driver, void *port)
    KAL_DPRINT("Removed port (driver handle: %p, port handle: %p)\n", driver, port);
 
    nNIKAL100_free(uartPort);
-#endif
 }
 
 
 nNIKAL100_cc void nNIKAL100_insertCharToSerialRxBuffer(void *port, char ch, nNIKAL100_tSerialCoreError errorFlag, bool ignore)
 {
-#if nNIKAL100_mSerialCoreIsSupported
    nLinux_uartPort *uartPort;
    nLinux_ttyPort  *ttyPort;
 
@@ -7860,26 +6600,16 @@ nNIKAL100_cc void nNIKAL100_insertCharToSerialRxBuffer(void *port, char ch, nNIK
    if (ignore)
       return;
 
-   if (tty_insert_flip_char(
-#ifdef nNIKAL100_kUseTtyPortParam
-         ttyPort,
-#else
-         ttyPort->tty,
-#endif
-         ch,
-         (unsigned int)errorFlag
-         ) == 0)
+   if (tty_insert_flip_char( ttyPort, ch, (unsigned int)errorFlag) == 0)
    {
       
       uartPort->icount.buf_overrun++;
    }
-#endif
 }
 
 
 nNIKAL100_cc void nNIKAL100_pushSerialRxBufferToUser(void *port)
 {
-#if nNIKAL100_mSerialCoreIsSupported
    nLinux_uartPort *uartPort;
    nLinux_ttyPort  *ttyPort;
 
@@ -7889,14 +6619,7 @@ nNIKAL100_cc void nNIKAL100_pushSerialRxBufferToUser(void *port)
    KAL_ASSERT(uartPort->state != NULL);
    ttyPort = &(uartPort->state->port);
 
-   tty_flip_buffer_push(
-#ifdef nNIKAL100_kUseTtyPortParam
-      ttyPort
-#else
-      ttyPort->tty
-#endif
-      );
-#endif
+   tty_flip_buffer_push(ttyPort);
 }
 
 nNIKAL100_cc void nNIKAL250_halt(const char *component, const char *file, int line, const char *message)
@@ -7908,17 +6631,14 @@ nNIKAL100_cc void nNIKAL250_halt(const char *component, const char *file, int li
 
 nNIKAL100_cc void nNIKAL100_serialCoreTxWakeup(void *port)
 {
-#if nNIKAL100_mSerialCoreIsSupported
    nLinux_uartPort *uartPort = (nLinux_uartPort*)port;
    KAL_ASSERT(uartPort != NULL);
    uart_write_wakeup(uartPort);
-#endif
 }
 
 
 nNIKAL100_cc void nNIKAL100_serialCoreHandleModemChange(void *port, unsigned int msr)
 {
-#if nNIKAL100_mSerialCoreIsSupported
    nLinux_uartPort *uartPort;
    nLinux_ttyPort  *ttyPort;
 
@@ -7989,35 +6709,28 @@ nNIKAL100_cc void nNIKAL100_serialCoreHandleModemChange(void *port, unsigned int
 
    
    wake_up_interruptible(&(uartPort->state->port.delta_msr_wait));
-#endif
 }
 
 
 nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_serialCoreLockPort(void *port)
 {
-#if nNIKAL100_mSerialCoreIsSupported
    nLinux_uartPort *uartPort;
 
    KAL_ASSERT(port != NULL);
    uartPort = (nLinux_uartPort*)port;
 
    return nNIKAL100_acquireSpinLockInterrupt(&uartPort->lock);
-#else
-   return 0;
-#endif
 }
 
 
 nNIKAL100_cc void nNIKAL100_serialCoreUnlockPort(void *port, nNIKAL100_tU32 flags)
 {
-#if nNIKAL100_mSerialCoreIsSupported
    nLinux_uartPort *uartPort;
 
    KAL_ASSERT(port != NULL);
    uartPort = (nLinux_uartPort*)port;
 
    nNIKAL100_releaseSpinLockInterrupt(&uartPort->lock, flags);
-#endif
 }
 
 
@@ -8087,10 +6800,6 @@ nNIKAL100_cc nNIKAL1_tFirmwareBuffer *nNIKAL1_loadFirmwareBuffer(const void *dev
          dev = &(((nLinux_pciDevice *)devInfo->osDevice)->dev);
          break;
 
-      case nNIKAL100_kBusTypeUSB:
-         dev = &(((nLinux_usbDevice *)devInfo->osDevice)->dev);
-         break;
-
       case nNIKAL1500_kBusTypeACPI:
 #if nNIKAL1500_mACPIIsSupported
          dev = &(((nLinux_acpiDevice *)devInfo->osDevice)->dev);
@@ -8099,6 +6808,7 @@ nNIKAL100_cc nNIKAL1_tFirmwareBuffer *nNIKAL1_loadFirmwareBuffer(const void *dev
         
 #endif
 
+      case nNIKAL100_kBusTypeUSB:
       case nNIKAL200_kBusTypeSimulated:
       default:
          KAL_ASSERT(0, "Unsupported bus type!: %d\n", devInfo->busType);
@@ -8134,11 +6844,7 @@ nNIKAL100_cc void nNIKAL1_freeFirmwareBuffer(nNIKAL1_tFirmwareBuffer *firmware)
 module_init(nNIKAL100_initDriver);
 module_exit(nNIKAL100_cleanupDriver);
 
-#ifdef EXPORT_SYMBOL_NOVERS
-#define nNIKAL100_mExportSymbol EXPORT_SYMBOL_NOVERS
-#else
 #define nNIKAL100_mExportSymbol EXPORT_SYMBOL
-#endif
 nNIKAL100_mExportSymbol(nNIKAL200_isAddressableMemOver4G);
 nNIKAL100_mExportSymbol(nNIKAL100_initializeSingleUseEvent);
 nNIKAL100_mExportSymbol(nNIKAL100_relinquishInterrupt);
@@ -8296,8 +7002,10 @@ nNIKAL100_mExportSymbol(nNIKAL240_registerDeviceInterface);
 nNIKAL100_mExportSymbol(nNIKAL200_unregisterDeviceInterface);
 nNIKAL100_mExportSymbol(nNIKAL240_notifyUserspaceAddEvent);
 nNIKAL100_mExportSymbol(nNIKAL220_tPageList_createFromAllocation);
+nNIKAL100_mExportSymbol(nNIKAL1_tPageList_createFromAllocationNUMA);
 nNIKAL100_mExportSymbol(nNIKAL220_tPageList_createFromUser);
 nNIKAL100_mExportSymbol(nNIKAL220_tPageList_destroy);
+nNIKAL100_mExportSymbol(nNIKAL1_getDeviceNUMANode);
 nNIKAL100_mExportSymbol(nNIKAL220_tPageList_mapToKernel);
 nNIKAL100_mExportSymbol(nNIKAL220_tPageList_unmapFromKernel);
 nNIKAL100_mExportSymbol(nNIKAL220_tPageList_getPhysicalAddress);

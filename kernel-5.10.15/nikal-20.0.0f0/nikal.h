@@ -34,13 +34,11 @@ extern "C" {
 #define nNIKAL100_kPCIIOResourceFlagTypeMem  0x2
 #define nNIKAL100_kPCIDontCare (~0)
 
+#define nNIKAL1_kNUMANodeUnspecified (-1)
+
 #define nNIKAL1500_kACPIIDLength                9
 
-#if ((defined(__arm__) || defined(__mips__)))
-#define nNIKAL100_cc
-#else
-#define nNIKAL100_cc __attribute__((regparm(0)))
-#endif
+#define	nNIKAL100_cc
 
 /* ---------------------------------------------------------------------- */
 /* KAL status codes */
@@ -85,7 +83,7 @@ extern "C" {
 /* KAL types */
 /* ---------------------------------------------------------------------- */
 
-#if ((defined(__GNUG__) || defined(__GNUC__)) && (defined(__i386__) || defined(__arm__) || defined(__mips__)))
+#if ((defined(__GNUG__) || defined(__GNUC__)) && defined(__arm__))
    typedef char               nNIKAL100_tText;
    typedef unsigned char      nNIKAL100_tU8;
    typedef char               nNIKAL100_tI8;
@@ -131,16 +129,16 @@ extern "C" {
    #define __iomem
 #endif
 
-typedef void (*nNIKAL100_cc nNIKAL100_tDPCCallback)(void *context);
+typedef void (* nNIKAL100_tDPCCallback)(void *context);
 
-typedef nNIKAL100_tBoolean (*nNIKAL100_cc nNIKAL100_tInterruptCallback)(nNIKAL100_tU32 irq, void *context);
+typedef nNIKAL100_tBoolean (* nNIKAL100_tInterruptCallback)(nNIKAL100_tU32 irq, void *context);
 typedef struct
 {
    nNIKAL100_tInterruptCallback func;
    void *context;
 } nNIKAL100_tInterruptCallbackSpec;
 
-typedef void (*nNIKAL100_cc nNIKAL100_tTimerCallback)( void * context);
+typedef void (* nNIKAL100_tTimerCallback)( void * context);
 typedef struct
 {
    nNIKAL100_tTimerCallback func;
@@ -266,7 +264,7 @@ enum nNIKAL100_tUSBTransferFlags
 
 struct nNIKAL100_tURB;
 
-typedef void (*nNIKAL100_cc nNIKAL100_tUSBCallback)( struct nNIKAL100_tURB* urb );
+typedef void (* nNIKAL100_tUSBCallback)( struct nNIKAL100_tURB* urb );
 
 typedef enum
 {
@@ -489,7 +487,7 @@ typedef struct
    nNIKAL100_tU16 domain;
 } nNIKAL100_tPCIBridgeInfo;
 
-typedef void (*nNIKAL100_cc nNIKAL100_tPCIBridgeVisitor)(void *arg,
+typedef void (* nNIKAL100_tPCIBridgeVisitor)(void *arg,
    const nNIKAL100_tPCIBridgeInfo *pciBus);
 
 typedef struct nNIKAL220_tUserMemMap           nNIKAL220_tUserMemMap;
@@ -503,21 +501,21 @@ typedef struct nNIKAL100_tDriver
    void *module; /* NULL IFF the driver gets linked to KAL, otherwise: THIS_MODULE */
    const nNIKAL100_tText *name; /* name of the sub driver */
    nNIKAL100_tU32 number; /* minor number to dispatch to this driver */
-   nNIKAL100_tStatus (*nNIKAL100_cc open)(void *filePtr, void **fileContext);
-   void (*nNIKAL100_cc close)(void *fileContext);
-   nNIKAL100_tStatus (*nNIKAL100_cc read)(void *fileContext, nNIKAL100_tText *buffer, nNIKAL100_tSizeType count, nNIKAL100_tIPtr *offset, nNIKAL100_tIPtr *bytesRead);
-   nNIKAL100_tStatus (*nNIKAL100_cc write)(void *fileContext, const nNIKAL100_tText *buffer, nNIKAL100_tSizeType count, nNIKAL100_tIPtr *offset, nNIKAL100_tIPtr *bytesWritten);
-   nNIKAL100_tStatus (*nNIKAL100_cc deviceIOControl)(void *fileContext, nNIKAL100_tU32 command, void *param);
+   nNIKAL100_tStatus (* open)(void *filePtr, void **fileContext);
+   void (* close)(void *fileContext);
+   nNIKAL100_tStatus (* read)(void *fileContext, nNIKAL100_tText *buffer, nNIKAL100_tSizeType count, nNIKAL100_tIPtr *offset, nNIKAL100_tIPtr *bytesRead);
+   nNIKAL100_tStatus (* write)(void *fileContext, const nNIKAL100_tText *buffer, nNIKAL100_tSizeType count, nNIKAL100_tIPtr *offset, nNIKAL100_tIPtr *bytesWritten);
+   nNIKAL100_tStatus (* deviceIOControl)(void *fileContext, nNIKAL100_tU32 command, void *param);
 
-   void (*nNIKAL100_cc unload)(struct nNIKAL100_tDriver *driver);
-   nNIKAL100_tStatus (*nNIKAL100_cc addDevice)(const nNIKAL100_tDeviceInfo *pciDevice,
+   void (* unload)(struct nNIKAL100_tDriver *driver);
+   nNIKAL100_tStatus (* addDevice)(const nNIKAL100_tDeviceInfo *pciDevice,
       void *deviceClassData, void **deviceExtension);
-   void (*nNIKAL100_cc removeDevice)(void *deviceExtension);
+   void (* removeDevice)(void *deviceExtension);
 
-   nNIKAL100_tStatus (*nNIKAL100_cc mapMemory)(void *fileContext, unsigned long type, nNIKAL220_tUserMemMap *vma, nNIKAL220_tUserMemMapFlags *flags, void **private_data);
-   void (*nNIKAL100_cc unmapMemory)(void *private_data);
+   nNIKAL100_tStatus (* mapMemory)(void *fileContext, unsigned long type, nNIKAL220_tUserMemMap *vma, nNIKAL220_tUserMemMapFlags *flags, void **private_data);
+   void (* unmapMemory)(void *private_data);
 
-   void (*nNIKAL100_cc destroyDevice)(void *deviceExtension);
+   void (* destroyDevice)(void *deviceExtension);
 } nNIKAL100_tDriver;
 
 typedef struct
@@ -560,7 +558,7 @@ typedef enum
 } nNIKAL100_tMemoryAddressType;
 
 #define nNIKAL100_kSingleUseEventSize (sizeof(void*) * 16)
-typedef nNIKAL100_tI32 (*nNIKAL100_cc nNIKAL100_tThreadFunction)(void *data);
+typedef nNIKAL100_tI32 (* nNIKAL100_tThreadFunction)(void *data);
 
 typedef struct
 {
@@ -580,28 +578,28 @@ typedef enum
 /* ---------------------------------------------------------------------- */
 /* KAL interface */
 /* ---------------------------------------------------------------------- */
-static inline nNIKAL100_cc nNIKAL100_tBoolean nNIKAL100_statusIsFatal(nNIKAL100_tStatus status)
+static inline nNIKAL100_tBoolean nNIKAL100_statusIsFatal(nNIKAL100_tStatus status)
 {
    return (status < 0);
 }
-static inline nNIKAL100_cc nNIKAL100_tBoolean nNIKAL100_statusIsNonfatal(nNIKAL100_tStatus status)
+static inline nNIKAL100_tBoolean nNIKAL100_statusIsNonfatal(nNIKAL100_tStatus status)
 {
    return (status >= 0);
 }
 
 /* argv[0] must contain the user executable relative file path under sbin */
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL200_createProcess(const char **argv, nNIKAL100_tBoolean wait);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL1400_createProcessAndWait(const char **argv, int *exitCode);
+nNIKAL100_tStatus nNIKAL200_createProcess(const char **argv, nNIKAL100_tBoolean wait);
+nNIKAL100_tStatus nNIKAL1400_createProcessAndWait(const char **argv, int *exitCode);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_replicateOutboundIOControlBuffer(void __user *to, const void *from, nNIKAL100_tI32 count);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_replicateInboundIOControlBuffer(void *to, const void __user *from, nNIKAL100_tI32 count);
+nNIKAL100_tStatus nNIKAL100_replicateOutboundIOControlBuffer(void __user *to, const void *from, nNIKAL100_tI32 count);
+nNIKAL100_tStatus nNIKAL100_replicateInboundIOControlBuffer(void *to, const void __user *from, nNIKAL100_tI32 count);
 
-nNIKAL100_cc void nNIKAL100_getKernelVersion(nNIKAL100_tU32 *major, nNIKAL100_tU32 *minor);
-nNIKAL100_cc nNIKAL100_tBoolean nNIKAL200_isAddressableMemOver4G(void);
+void nNIKAL100_getKernelVersion(nNIKAL100_tU32 *major, nNIKAL100_tU32 *minor);
+nNIKAL100_tBoolean nNIKAL200_isAddressableMemOver4G(void);
 
-nNIKAL100_cc nNIKAL100_tI32 nNIKAL100_vsprintf(nNIKAL100_tText* buf, const nNIKAL100_tText* fmt, va_list arg);
-nNIKAL100_cc nNIKAL100_tI32 nNIKAL100_vsnPrintf(nNIKAL100_tText* buf, nNIKAL100_tU32 size, const nNIKAL100_tText* fmt, va_list arg);
-nNIKAL100_cc void nNIKAL100_printToDebugger(const nNIKAL100_tText* string);
+nNIKAL100_tI32 nNIKAL100_vsprintf(nNIKAL100_tText* buf, const nNIKAL100_tText* fmt, va_list arg);
+nNIKAL100_tI32 nNIKAL100_vsnPrintf(nNIKAL100_tText* buf, nNIKAL100_tU32 size, const nNIKAL100_tText* fmt, va_list arg);
+void nNIKAL100_printToDebugger(const nNIKAL100_tText* string);
 
 typedef enum
 {
@@ -615,247 +613,247 @@ typedef enum
    nNIKAL1500_kLogLevelDebug, /* <== Least severe */
 } nNIKAL1500_tLogLevel;
 
-nNIKAL100_cc void nNIKAL1500_printLineToDebugger(nNIKAL1500_tLogLevel logLevel, const char *message);
+void nNIKAL1500_printLineToDebugger(nNIKAL1500_tLogLevel logLevel, const char *message);
 
-nNIKAL100_cc void *nNIKAL100_malloc(nNIKAL100_tUPtr size);
-nNIKAL100_cc void *nNIKAL100_mallocContiguous(nNIKAL100_tUPtr size);
-nNIKAL100_cc void *nNIKAL100_malloc32BitPhysicalContiguous(nNIKAL100_tUPtr size);
-nNIKAL100_cc void nNIKAL100_free(void *pointer);
-nNIKAL100_cc void nNIKAL100_free32BitPhysicalContiguous(void *pointer);
+void *nNIKAL100_malloc(nNIKAL100_tUPtr size);
+void *nNIKAL100_mallocContiguous(nNIKAL100_tUPtr size);
+void *nNIKAL100_malloc32BitPhysicalContiguous(nNIKAL100_tUPtr size);
+void nNIKAL100_free(void *pointer);
+void nNIKAL100_free32BitPhysicalContiguous(void *pointer);
 
-nNIKAL100_cc void *nNIKAL180_memCpy(void *dest, const void *src, size_t size);
-nNIKAL100_cc void *nNIKAL180_memMove(void *dest, const void *src, size_t size);
-nNIKAL100_cc void *nNIKAL240_memSet(void *buffer, nNIKAL100_tU8 data, size_t size);
-nNIKAL100_cc int   nNIKAL250_memCmp(const void *buffer1, const void* buffer2, size_t count);
+void *nNIKAL180_memCpy(void *dest, const void *src, size_t size);
+void *nNIKAL180_memMove(void *dest, const void *src, size_t size);
+void *nNIKAL240_memSet(void *buffer, nNIKAL100_tU8 data, size_t size);
+int   nNIKAL250_memCmp(const void *buffer1, const void* buffer2, size_t count);
 
-nNIKAL100_cc size_t nNIKAL250_strLen(const char *str);
-nNIKAL100_cc int    nNIKAL250_strCmp(const char *str1, const char *str2);
-nNIKAL100_cc char * nNIKAL250_strnCpy(char *dest, const char *src, size_t count);
-nNIKAL100_cc int    nNIKAL1700_sScanf(const char *str, const char *format, ...);
-nNIKAL100_cc int    nNIKAL1700_vsScanf(const char *str, const char *format, va_list ap);
+size_t nNIKAL250_strLen(const char *str);
+int    nNIKAL250_strCmp(const char *str1, const char *str2);
+char * nNIKAL250_strnCpy(char *dest, const char *src, size_t count);
+int    nNIKAL1700_sScanf(const char *str, const char *format, ...);
+int    nNIKAL1700_vsScanf(const char *str, const char *format, va_list ap);
 
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_getPageSize(void);
-nNIKAL100_cc nNIKAL100_tUPtr nNIKAL100_getPhysicalMemorySize(void);
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_getNumberOfActiveProcessors(void);
+nNIKAL100_tU32 nNIKAL100_getPageSize(void);
+nNIKAL100_tUPtr nNIKAL100_getPhysicalMemorySize(void);
+nNIKAL100_tU32 nNIKAL100_getNumberOfActiveProcessors(void);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_unmapKernelFromUser (nNIKAL100_tUPtr targetAddr,
+nNIKAL100_tStatus nNIKAL100_unmapKernelFromUser (nNIKAL100_tUPtr targetAddr,
    nNIKAL100_tUPtr size, const void *osData);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_mapKernelToUser (void * const file, nNIKAL100_tUPtr sourceAddr,
+nNIKAL100_tStatus nNIKAL100_mapKernelToUser (void * const file, nNIKAL100_tUPtr sourceAddr,
    nNIKAL100_tUPtr size, nNIKAL100_tMemoryAddressType type, nNIKAL100_tUPtr *targetAddr, void **osData);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_pageLockUserPointer(void __user * inPointer, const nNIKAL100_tUPtr inSize,
+nNIKAL100_tStatus nNIKAL100_pageLockUserPointer(void __user * inPointer, const nNIKAL100_tUPtr inSize,
    void ** outPageLockedPointer, nNIKAL100_tMemPageLockToken *pageLockToken);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_pageUnlockUserPointer(nNIKAL100_tMemPageLockToken * pageLockPtr);
+nNIKAL100_tStatus nNIKAL100_pageUnlockUserPointer(nNIKAL100_tMemPageLockToken * pageLockPtr);
 
-nNIKAL100_cc void __iomem * nNIKAL100_mapPhysicalToKernel (nNIKAL100_tUPtr physicalAddress,
+void __iomem * nNIKAL100_mapPhysicalToKernel (nNIKAL100_tUPtr physicalAddress,
    nNIKAL100_tUPtr byteCount);
-nNIKAL100_cc void nNIKAL100_unmapPhysicalFromKernel (void __iomem * memoryArea);
+void nNIKAL100_unmapPhysicalFromKernel (void __iomem * memoryArea);
 
-nNIKAL100_cc nNIKAL100_tUPtr nNIKAL100_getPhysicalAddress(const void *ptr, nNIKAL100_tAddressOrigin addressOrigin);
+nNIKAL100_tUPtr nNIKAL100_getPhysicalAddress(const void *ptr, nNIKAL100_tAddressOrigin addressOrigin);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_loadDriver(const nNIKAL100_tText* moduleName);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_incrementDriverRefcount(void* driverHandle);
-nNIKAL100_cc void nNIKAL100_decrementDriverRefcount(void* driverHandle);
+nNIKAL100_tStatus nNIKAL100_loadDriver(const nNIKAL100_tText* moduleName);
+nNIKAL100_tStatus nNIKAL100_incrementDriverRefcount(void* driverHandle);
+void nNIKAL100_decrementDriverRefcount(void* driverHandle);
 
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_getTimerInterval (void);
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_sleepTimeoutInterruptible(
+nNIKAL100_tU32 nNIKAL100_getTimerInterval (void);
+nNIKAL100_tU32 nNIKAL100_sleepTimeoutInterruptible(
    nNIKAL100_tU32 timeToSleepInNanoseconds);
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL1_sleepTimeoutInterruptible(
+nNIKAL100_tU32 nNIKAL1_sleepTimeoutInterruptible(
    nNIKAL100_tU32 timeToSleepInMilliseconds);
-nNIKAL100_cc void nNIKAL100_sleepTimeout(nNIKAL100_tU32 timeToSleepInNanoseconds);
-nNIKAL100_cc void nNIKAL250_sleepTimeout(nNIKAL100_tU32 timeToSleepInMicroseconds);
-nNIKAL100_cc void nNIKAL200_yield(void);
-nNIKAL100_cc nNIKAL100_tU64 nNIKAL1_getMonotonicCounter (void);
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_getTimerCount (void);
-nNIKAL100_cc nNIKAL100_tU64 nNIKAL110_getTimerCount (void);
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_getTimeOfDayInterval (void);
-nNIKAL100_cc void nNIKAL100_getTimeOfDay (nNIKAL100_tU32 *systemSeconds,
+void nNIKAL100_sleepTimeout(nNIKAL100_tU32 timeToSleepInNanoseconds);
+void nNIKAL250_sleepTimeout(nNIKAL100_tU32 timeToSleepInMicroseconds);
+void nNIKAL200_yield(void);
+nNIKAL100_tU64 nNIKAL1_getMonotonicCounter (void);
+nNIKAL100_tU32 nNIKAL100_getTimerCount (void);
+nNIKAL100_tU64 nNIKAL110_getTimerCount (void);
+nNIKAL100_tU32 nNIKAL100_getTimeOfDayInterval (void);
+void nNIKAL100_getTimeOfDay (nNIKAL100_tU32 *systemSeconds,
    nNIKAL100_tU32 *systemMicroseconds);
 
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_getThreadID( void );
-nNIKAL100_cc void *nNIKAL100_getThreadHandle( void );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_createSystemThread( void *threadContext,
+nNIKAL100_tU32 nNIKAL100_getThreadID( void );
+void *nNIKAL100_getThreadHandle( void );
+nNIKAL100_tStatus nNIKAL100_createSystemThread( void *threadContext,
    nNIKAL100_tThreadFunction threadMain, nNIKAL100_tUPtr *childPID );
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL250_createNamedThread( nNIKAL200_tThread * threadParam, char const * threadName );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL200_createThread( nNIKAL200_tThread * threadParam );
-nNIKAL100_cc void nNIKAL200_joinThread( nNIKAL200_tThread *thread );
+nNIKAL100_tStatus nNIKAL250_createNamedThread( nNIKAL200_tThread * threadParam, char const * threadName );
+nNIKAL100_tStatus nNIKAL200_createThread( nNIKAL200_tThread * threadParam );
+void nNIKAL200_joinThread( nNIKAL200_tThread *thread );
 
-nNIKAL100_cc void *nNIKAL100_createSemaphore( nNIKAL100_tI32 initVal );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_destroySemaphore( void * sema );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_acquireSemaphore( void * sema );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_acquireSemaphoreInterruptible( void * sema );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_acquireSemaphoreZeroTimeout( void * sema );
-nNIKAL100_cc nNIKAL100_tI32 nNIKAL100_releaseSemaphore( void * sema );
-nNIKAL100_cc void *nNIKAL100_createSpinLock( void );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_destroySpinLock( void *spinlock );
-nNIKAL100_cc nNIKAL100_tUPtr nNIKAL110_acquireSpinLockInterrupt( void *spinlock );
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_acquireSpinLockInterrupt( void *spinlock );
-nNIKAL100_cc void nNIKAL110_releaseSpinLockInterrupt( void *spinlock, nNIKAL100_tUPtr flags );
-nNIKAL100_cc void nNIKAL100_releaseSpinLockInterrupt( void *spinlock, nNIKAL100_tU32 flags );
-nNIKAL100_cc void nNIKAL100_acquireSpinLockDPC( void * spinlock );
-nNIKAL100_cc void nNIKAL100_releaseSpinLockDPC( void *spinlock );
-nNIKAL100_cc void *nNIKAL150_createMutex( void );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL150_destroyMutex( void * mutex );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL150_acquireMutex( void * mutex );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL150_acquireMutexInterruptible( void * mutex );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL150_acquireMutexZeroTimeout( void * mutex );
-nNIKAL100_cc void nNIKAL150_releaseMutex( void * mutex );
+void *nNIKAL100_createSemaphore( nNIKAL100_tI32 initVal );
+nNIKAL100_tStatus nNIKAL100_destroySemaphore( void * sema );
+nNIKAL100_tStatus nNIKAL100_acquireSemaphore( void * sema );
+nNIKAL100_tStatus nNIKAL100_acquireSemaphoreInterruptible( void * sema );
+nNIKAL100_tStatus nNIKAL100_acquireSemaphoreZeroTimeout( void * sema );
+nNIKAL100_tI32 nNIKAL100_releaseSemaphore( void * sema );
+void *nNIKAL100_createSpinLock( void );
+nNIKAL100_tStatus nNIKAL100_destroySpinLock( void *spinlock );
+nNIKAL100_tUPtr nNIKAL110_acquireSpinLockInterrupt( void *spinlock );
+nNIKAL100_tU32 nNIKAL100_acquireSpinLockInterrupt( void *spinlock );
+void nNIKAL110_releaseSpinLockInterrupt( void *spinlock, nNIKAL100_tUPtr flags );
+void nNIKAL100_releaseSpinLockInterrupt( void *spinlock, nNIKAL100_tU32 flags );
+void nNIKAL100_acquireSpinLockDPC( void * spinlock );
+void nNIKAL100_releaseSpinLockDPC( void *spinlock );
+void *nNIKAL150_createMutex( void );
+nNIKAL100_tStatus nNIKAL150_destroyMutex( void * mutex );
+nNIKAL100_tStatus nNIKAL150_acquireMutex( void * mutex );
+nNIKAL100_tStatus nNIKAL150_acquireMutexInterruptible( void * mutex );
+nNIKAL100_tStatus nNIKAL150_acquireMutexZeroTimeout( void * mutex );
+void nNIKAL150_releaseMutex( void * mutex );
 
-nNIKAL100_cc void nNIKAL100_initializeSingleUseEvent( void *event );
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_getSingleUseEventSize( void );
-nNIKAL100_cc void nNIKAL100_releaseSingleUseEvent( void *event );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_waitForSingleUseEvent( void *event );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_waitForSingleUseEventInterruptible( void *event );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_waitForSingleUseEventTimeout( void *event,
+void nNIKAL100_initializeSingleUseEvent( void *event );
+nNIKAL100_tU32 nNIKAL100_getSingleUseEventSize( void );
+void nNIKAL100_releaseSingleUseEvent( void *event );
+nNIKAL100_tStatus nNIKAL100_waitForSingleUseEvent( void *event );
+nNIKAL100_tStatus nNIKAL100_waitForSingleUseEventInterruptible( void *event );
+nNIKAL100_tStatus nNIKAL100_waitForSingleUseEventTimeout( void *event,
    nNIKAL100_tU32 timeout, nNIKAL100_tTimerCallbackSpec *timerCallbackPkg );
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_waitForSingleUseEventTimeoutInterruptible ( void *event,
+nNIKAL100_tStatus nNIKAL100_waitForSingleUseEventTimeoutInterruptible ( void *event,
    nNIKAL100_tU32 timeout, nNIKAL100_tTimerCallbackSpec *timerCallbackPkg );
 
-nNIKAL100_cc void *nNIKAL100_registerUSBDriver(nNIKAL100_tDriver *driver,
+void *nNIKAL100_registerUSBDriver(nNIKAL100_tDriver *driver,
    const nNIKAL100_tText *name, void *usbDevIdTable);
-nNIKAL100_cc void nNIKAL100_unregisterUSBDriver(void *usbDriverData, const nNIKAL100_tText ** name,
+void nNIKAL100_unregisterUSBDriver(void *usbDriverData, const nNIKAL100_tText ** name,
    void **usbDevIdTable);
 
-nNIKAL100_cc void *nNIKAL100_createUSBDeviceIDTable(nNIKAL100_tU32 size);
-nNIKAL100_cc void nNIKAL100_setUSBDeviceIDTableElement(void *usbDevIdTable,
+void *nNIKAL100_createUSBDeviceIDTable(nNIKAL100_tU32 size);
+void nNIKAL100_setUSBDeviceIDTableElement(void *usbDevIdTable,
    nNIKAL100_tU32 vendor, nNIKAL100_tU32 product, void *privateData);
-nNIKAL100_cc void nNIKAL100_destroyUSBDeviceIDTable(void *usbDevIdTable);
+void nNIKAL100_destroyUSBDeviceIDTable(void *usbDevIdTable);
 
-nNIKAL100_cc nNIKAL100_tURB* nNIKAL100_usbAllocateURB(nNIKAL100_tU32 numISODescriptors);
-nNIKAL100_cc void nNIKAL100_usbFreeURB(nNIKAL100_tURB* urb);
+nNIKAL100_tURB* nNIKAL100_usbAllocateURB(nNIKAL100_tU32 numISODescriptors);
+void nNIKAL100_usbFreeURB(nNIKAL100_tURB* urb);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbSubmitURB(nNIKAL100_tURB* urb);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbUnlinkURB(nNIKAL100_tURB* urb);
+nNIKAL100_tStatus nNIKAL100_usbSubmitURB(nNIKAL100_tURB* urb);
+nNIKAL100_tStatus nNIKAL100_usbUnlinkURB(nNIKAL100_tURB* urb);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbSynchronousControlRequest(void* osDevice,
+nNIKAL100_tStatus nNIKAL100_usbSynchronousControlRequest(void* osDevice,
    nNIKAL100_tUSBSetupPacket* setupPacket, void* data);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbGetDeviceDescriptor(void* osDevice, void* buffer, nNIKAL100_tU32 size);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbGetConfigurationDescriptor(void* osDevice, nNIKAL100_tU8 configurationValue, void* buffer, nNIKAL100_tU32 size);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbGetInterfaceDescriptor(void* osDevice, nNIKAL100_tU8 configurationValue,
+nNIKAL100_tStatus nNIKAL100_usbGetDeviceDescriptor(void* osDevice, void* buffer, nNIKAL100_tU32 size);
+nNIKAL100_tStatus nNIKAL100_usbGetConfigurationDescriptor(void* osDevice, nNIKAL100_tU8 configurationValue, void* buffer, nNIKAL100_tU32 size);
+nNIKAL100_tStatus nNIKAL100_usbGetInterfaceDescriptor(void* osDevice, nNIKAL100_tU8 configurationValue,
    nNIKAL100_tU8 interfaceNumber, nNIKAL100_tU8 altSettingNumber, void* buffer, nNIKAL100_tU32 size);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbGetEndpointDescriptor(void* osDevice, nNIKAL100_tU8 configurationValue,
+nNIKAL100_tStatus nNIKAL100_usbGetEndpointDescriptor(void* osDevice, nNIKAL100_tU8 configurationValue,
    nNIKAL100_tU8 interfaceNumber, nNIKAL100_tU8 altSettingNumber, nNIKAL100_tU8 endpointNumber, void* buffer, nNIKAL100_tU32 size);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbSetConfiguration(void* osDevice, nNIKAL100_tU8  configurationValue);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbGetConfiguration(void* osDevice, nNIKAL100_tU8* configurationValuePtr);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbSetInterface(void* osDevice, nNIKAL100_tU8 interfaceNumber, nNIKAL100_tU8  alternateSetting);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_usbGetInterface(void* osDevice, nNIKAL100_tU8 interfaceNumber, nNIKAL100_tU8* alternateSettingPtr);
+nNIKAL100_tStatus nNIKAL100_usbSetConfiguration(void* osDevice, nNIKAL100_tU8  configurationValue);
+nNIKAL100_tStatus nNIKAL100_usbGetConfiguration(void* osDevice, nNIKAL100_tU8* configurationValuePtr);
+nNIKAL100_tStatus nNIKAL100_usbSetInterface(void* osDevice, nNIKAL100_tU8 interfaceNumber, nNIKAL100_tU8  alternateSetting);
+nNIKAL100_tStatus nNIKAL100_usbGetInterface(void* osDevice, nNIKAL100_tU8 interfaceNumber, nNIKAL100_tU8* alternateSettingPtr);
 
-nNIKAL100_cc void *nNIKAL100_registerPCIDriver(nNIKAL100_tDriver *driver,
+void *nNIKAL100_registerPCIDriver(nNIKAL100_tDriver *driver,
    const nNIKAL100_tText *name, void *pciDevIdTable);
-nNIKAL100_cc void nNIKAL100_unregisterPCIDriver(void *pciDriverData, const nNIKAL100_tText ** name,
+void nNIKAL100_unregisterPCIDriver(void *pciDriverData, const nNIKAL100_tText ** name,
    void **pciDevIdTable);
 
-nNIKAL100_cc void *nNIKAL200_registerPCIDriver(void *driver);
-nNIKAL100_cc void nNIKAL200_unregisterPCIDriver(void *pciDriverData);
+void *nNIKAL200_registerPCIDriver(void *driver);
+void nNIKAL200_unregisterPCIDriver(void *pciDriverData);
 
-nNIKAL100_cc void *nNIKAL100_createPCIDeviceIDTable(nNIKAL100_tU32 size);
-nNIKAL100_cc void nNIKAL100_setPCIDeviceIDTableElement(void *pciDevIdTable,
+void *nNIKAL100_createPCIDeviceIDTable(nNIKAL100_tU32 size);
+void nNIKAL100_setPCIDeviceIDTableElement(void *pciDevIdTable,
    nNIKAL100_tU32 vendor, nNIKAL100_tU32 device, nNIKAL100_tU32 subsysVendor,
    nNIKAL100_tU32 subsysDevice, nNIKAL100_tU32 devClass, nNIKAL100_tU32 devClassMask,
    void *privateData);
-nNIKAL100_cc void nNIKAL100_destroyPCIDeviceIDTable(void *pciDevIdTable);
+void nNIKAL100_destroyPCIDeviceIDTable(void *pciDevIdTable);
 
-nNIKAL100_cc void nNIKAL100_enumeratePCIBuses(nNIKAL100_tPCIBridgeVisitor visitor,
+void nNIKAL100_enumeratePCIBuses(nNIKAL100_tPCIBridgeVisitor visitor,
                                     void *visitorArgument,
                                     void *listToEnumerate);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_pciConfigWrite8 (const void * osDevObject,
+nNIKAL100_tStatus nNIKAL100_pciConfigWrite8 (const void * osDevObject,
    const nNIKAL100_tU32 address, const nNIKAL100_tU8 data);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_pciConfigWrite16 (const void * osDevObject,
+nNIKAL100_tStatus nNIKAL100_pciConfigWrite16 (const void * osDevObject,
    const nNIKAL100_tU32 address, const nNIKAL100_tU16 data);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_pciConfigWrite32 (const void * osDevObject,
+nNIKAL100_tStatus nNIKAL100_pciConfigWrite32 (const void * osDevObject,
    const nNIKAL100_tU32 address, const nNIKAL100_tU32 data);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_pciConfigRead8 (const void * osDevObject,
+nNIKAL100_tStatus nNIKAL100_pciConfigRead8 (const void * osDevObject,
    const nNIKAL100_tU32 address, nNIKAL100_tU8 *data);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_pciConfigRead16 (const void * osDevObject,
+nNIKAL100_tStatus nNIKAL100_pciConfigRead16 (const void * osDevObject,
    const nNIKAL100_tU32 address, nNIKAL100_tU16 *data);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_pciConfigRead32 (const void * osDevObject,
+nNIKAL100_tStatus nNIKAL100_pciConfigRead32 (const void * osDevObject,
    const nNIKAL100_tU32 address, nNIKAL100_tU32 *data);
 
-nNIKAL100_cc void nNIKAL100_ioWrite8 ( const nNIKAL100_tUPtr address,
+void nNIKAL100_ioWrite8 ( const nNIKAL100_tUPtr address,
    const nNIKAL100_tU8 data);
-nNIKAL100_cc void nNIKAL100_ioWrite16 ( const nNIKAL100_tUPtr address,
+void nNIKAL100_ioWrite16 ( const nNIKAL100_tUPtr address,
    const nNIKAL100_tU16 data);
-nNIKAL100_cc void nNIKAL100_ioWrite32 ( const nNIKAL100_tUPtr address,
+void nNIKAL100_ioWrite32 ( const nNIKAL100_tUPtr address,
    const nNIKAL100_tU32 data);
 
-nNIKAL100_cc nNIKAL100_tU8 nNIKAL100_ioRead8 ( const nNIKAL100_tUPtr address);
-nNIKAL100_cc nNIKAL100_tU16 nNIKAL100_ioRead16 ( const nNIKAL100_tUPtr address);
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_ioRead32 ( const nNIKAL100_tUPtr address);
+nNIKAL100_tU8 nNIKAL100_ioRead8 ( const nNIKAL100_tUPtr address);
+nNIKAL100_tU16 nNIKAL100_ioRead16 ( const nNIKAL100_tUPtr address);
+nNIKAL100_tU32 nNIKAL100_ioRead32 ( const nNIKAL100_tUPtr address);
 
-nNIKAL100_cc void nNIKAL100_memoryWrite8 ( const nNIKAL100_tUPtr address,
+void nNIKAL100_memoryWrite8 ( const nNIKAL100_tUPtr address,
    const nNIKAL100_tU8 data);
-nNIKAL100_cc void nNIKAL100_memoryWrite16 ( const nNIKAL100_tUPtr address,
+void nNIKAL100_memoryWrite16 ( const nNIKAL100_tUPtr address,
    const nNIKAL100_tU16 data);
-nNIKAL100_cc void nNIKAL100_memoryWrite32 ( const nNIKAL100_tUPtr address,
+void nNIKAL100_memoryWrite32 ( const nNIKAL100_tUPtr address,
    const nNIKAL100_tU32 data);
 
-nNIKAL100_cc nNIKAL100_tU8 nNIKAL100_memoryRead8 ( const nNIKAL100_tUPtr address);
-nNIKAL100_cc nNIKAL100_tU16 nNIKAL100_memoryRead16 ( const nNIKAL100_tUPtr address);
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_memoryRead32 ( const nNIKAL100_tUPtr address);
+nNIKAL100_tU8 nNIKAL100_memoryRead8 ( const nNIKAL100_tUPtr address);
+nNIKAL100_tU16 nNIKAL100_memoryRead16 ( const nNIKAL100_tUPtr address);
+nNIKAL100_tU32 nNIKAL100_memoryRead32 ( const nNIKAL100_tUPtr address);
 
-nNIKAL100_cc nNIKAL100_tI32 nNIKAL240_getPCIDomain(const void * osDevObject);
+nNIKAL100_tI32 nNIKAL240_getPCIDomain(const void * osDevObject);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL230_pciRequestMSI(nNIKAL100_tDeviceInfo *devInfo, nNIKAL100_tU32 numMessages);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL1700_pciReleaseMSI(nNIKAL100_tDeviceInfo *devInfo);
+nNIKAL100_tStatus nNIKAL230_pciRequestMSI(nNIKAL100_tDeviceInfo *devInfo, nNIKAL100_tU32 numMessages);
+nNIKAL100_tStatus nNIKAL1700_pciReleaseMSI(nNIKAL100_tDeviceInfo *devInfo);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_reserveInterrupt (nNIKAL100_tU32 irq,
+nNIKAL100_tStatus nNIKAL100_reserveInterrupt (nNIKAL100_tU32 irq,
    void *context, const nNIKAL100_tText *deviceName);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL1400_reserveInterrupt (nNIKAL100_tU32 irq,
+nNIKAL100_tStatus nNIKAL1400_reserveInterrupt (nNIKAL100_tU32 irq,
    void *context, const nNIKAL100_tText *deviceName,
    nNIKAL100_tU32 flags);
-nNIKAL100_cc void nNIKAL100_relinquishInterrupt (nNIKAL100_tU32 irq, void *context);
-nNIKAL100_cc void * nNIKAL100_createDPC (nNIKAL100_tDPCCallback dpcCallback);
-nNIKAL100_cc void nNIKAL100_destroyDPC (void * dpc);
-nNIKAL100_cc void nNIKAL100_scheduleDPC (void * dpc, void *context);
+void nNIKAL100_relinquishInterrupt (nNIKAL100_tU32 irq, void *context);
+void * nNIKAL100_createDPC (nNIKAL100_tDPCCallback dpcCallback);
+void nNIKAL100_destroyDPC (void * dpc);
+void nNIKAL100_scheduleDPC (void * dpc, void *context);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL100_registerDriver(nNIKAL100_tDriver *driver);
-nNIKAL100_cc void nNIKAL100_unregisterDriver(nNIKAL100_tDriver *driver);
+nNIKAL100_tStatus nNIKAL100_registerDriver(nNIKAL100_tDriver *driver);
+void nNIKAL100_unregisterDriver(nNIKAL100_tDriver *driver);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL200_registerDriver(nNIKAL100_tDriver *driver);
-nNIKAL100_cc void nNIKAL200_unregisterDriver(nNIKAL100_tDriver *driver);
+nNIKAL100_tStatus nNIKAL200_registerDriver(nNIKAL100_tDriver *driver);
+void nNIKAL200_unregisterDriver(nNIKAL100_tDriver *driver);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL200_registerSimulatedDeviceDriver(nNIKAL100_tDriver *driver,
+nNIKAL100_tStatus nNIKAL200_registerSimulatedDeviceDriver(nNIKAL100_tDriver *driver,
                                                                        size_t numDevices);
-nNIKAL100_cc void nNIKAL200_unregisterSimulatedDeviceDriver(nNIKAL100_tDriver *driver);
+void nNIKAL200_unregisterSimulatedDeviceDriver(nNIKAL100_tDriver *driver);
 
-nNIKAL100_cc const nNIKAL100_tText **nNIVersion_NIKAL_getVersionStringArray(void);
+const nNIKAL100_tText **nNIVersion_NIKAL_getVersionStringArray(void);
 
-nNIKAL100_cc nNIKAL100_tUPtr nNIKAL120_checkStackUsage(void);
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL170_getCallStack(nNIKAL100_tU32 callingLevel, nNIKAL100_tU32 startLevel, void **retAddrBuffer);
+nNIKAL100_tUPtr nNIKAL120_checkStackUsage(void);
+nNIKAL100_tU32 nNIKAL170_getCallStack(nNIKAL100_tU32 callingLevel, nNIKAL100_tU32 startLevel, void **retAddrBuffer);
 
 /* nNIKAL220_[create/destroy]SimulatedDevice for a driver are NOT thread safe! */
-nNIKAL100_cc void* nNIKAL200_createSimulatedDevice(nNIKAL100_tDriver *driver, const char* devName, void* creationContext);
-nNIKAL100_cc void nNIKAL200_destroySimulatedDevice(nNIKAL100_tDriver *driver, void *kalDevice);
+void* nNIKAL200_createSimulatedDevice(nNIKAL100_tDriver *driver, const char* devName, void* creationContext);
+void nNIKAL200_destroySimulatedDevice(nNIKAL100_tDriver *driver, void *kalDevice);
 
 /* This function is provided for use by the processmodule.sh codegen */
-nNIKAL100_cc int nNIKAL1500_helperACPIProbe(void *dev, nNIKAL100_tDriver *driver);
+int nNIKAL1500_helperACPIProbe(void *dev, nNIKAL100_tDriver *driver);
 
-nNIKAL100_cc void *nNIKAL1500_registerACPIDriver(void* inAcpiDriver, void *acpiProbe);
-nNIKAL100_cc void nNIKAL1500_unregisterACPIDriver(void *acpiDriverData);
-nNIKAL100_cc int nNIKAL1500_callACPIMethodGetInteger(const void *osDevObject,
+void *nNIKAL1500_registerACPIDriver(void* inAcpiDriver, void *acpiProbe);
+void nNIKAL1500_unregisterACPIDriver(void *acpiDriverData);
+int nNIKAL1500_callACPIMethodGetInteger(const void *osDevObject,
                                                     const char *method,
                                                     nNIKAL100_tU64 *value);
 
-nNIKAL100_cc int nNIKAL1500_callACPIMethod(const void *osDevObject,
+int nNIKAL1500_callACPIMethod(const void *osDevObject,
                                            const char *method,
                                            nNIKAL100_tU8 *outbuf, nNIKAL100_tU32 size);
-nNIKAL100_cc const char* nNIKAL1_getACPIDeviceID(const void *osDevObject);
+const char* nNIKAL1_getACPIDeviceID(const void *osDevObject);
 
-nNIKAL100_cc void* nNIKAL200_getDeviceExtension(void* kalDevice);
-nNIKAL100_cc void* nNIKAL200_getDeviceCreationContext(void* kalDevice);
+void* nNIKAL200_getDeviceExtension(void* kalDevice);
+void* nNIKAL200_getDeviceCreationContext(void* kalDevice);
 
 /* nNIKAL200_[un]registerDeviceInterface for one device are NOT thread safe! */
-nNIKAL100_cc void *nNIKAL200_registerDeviceInterface(nNIKAL100_tDriver *driver, void *device, const char *name, size_t interfaceNum, void *interface);
-nNIKAL100_cc void *nNIKAL220_registerDeviceInterface(nNIKAL100_tDriver *driver, void *device, const char *name, size_t interfaceNum, void *interface);
-nNIKAL100_cc void *nNIKAL230_registerDeviceInterface(nNIKAL100_tDriver *driver, void *device, const char *name, size_t interfaceNum, void *interface);
-nNIKAL100_cc void *nNIKAL240_registerDeviceInterface(nNIKAL100_tDriver *driver, void *device, const char *name, size_t interfaceNum, void *interface);
-nNIKAL100_cc void nNIKAL200_unregisterDeviceInterface(void *interface);
+void *nNIKAL200_registerDeviceInterface(nNIKAL100_tDriver *driver, void *device, const char *name, size_t interfaceNum, void *interface);
+void *nNIKAL220_registerDeviceInterface(nNIKAL100_tDriver *driver, void *device, const char *name, size_t interfaceNum, void *interface);
+void *nNIKAL230_registerDeviceInterface(nNIKAL100_tDriver *driver, void *device, const char *name, size_t interfaceNum, void *interface);
+void *nNIKAL240_registerDeviceInterface(nNIKAL100_tDriver *driver, void *device, const char *name, size_t interfaceNum, void *interface);
+void nNIKAL200_unregisterDeviceInterface(void *interface);
 
-nNIKAL100_cc void nNIKAL240_notifyUserspaceAddEvent(void *interface);
+void nNIKAL240_notifyUserspaceAddEvent(void *interface);
 
 typedef enum {
    nNIKAL200_tPropertyClassDevice,
@@ -869,8 +867,8 @@ typedef enum {
 #define nNIKAL200_kDeviceInterfacesPropertiesDir "properties"
 #define nNIKAL200_kDeviceInterfacesPathFile      "interfacePath"
 
-nNIKAL100_cc void *nNIKAL200_registerProperty(nNIKAL200_tPropertyClass propClass, void *context, const char *name, const void *content, size_t length);
-nNIKAL100_cc void nNIKAL200_unregisterProperty(void *handle);
+void *nNIKAL200_registerProperty(nNIKAL200_tPropertyClass propClass, void *context, const char *name, const void *content, size_t length);
+void nNIKAL200_unregisterProperty(void *handle);
 
 #define nNIKAL220_kPageListContiguous       (1UL<<0)
 #define nNIKAL220_kPageList32BitAddressable (1UL<<1)
@@ -879,49 +877,51 @@ nNIKAL100_cc void nNIKAL200_unregisterProperty(void *handle);
 #define nNIKAL220_kPageListAccessModeWrite  (1UL<<4)
 typedef struct nNIKAL220_tPageList nNIKAL220_tPageList;
 
-nNIKAL100_cc nNIKAL220_tPageList *nNIKAL220_tPageList_createFromAllocation(size_t pages, unsigned long flags);
-nNIKAL100_cc nNIKAL220_tPageList *nNIKAL220_tPageList_createFromUser(void __user *pointer,
+nNIKAL220_tPageList *nNIKAL220_tPageList_createFromAllocation(size_t pages, unsigned long flags);
+nNIKAL220_tPageList *nNIKAL1_tPageList_createFromAllocationNUMA(size_t pages, unsigned long flags, int preferredNode);
+nNIKAL220_tPageList *nNIKAL220_tPageList_createFromUser(void __user *pointer,
                                                                      size_t pages,
                                                                      unsigned long write);
-nNIKAL100_cc void                 nNIKAL220_tPageList_destroy(nNIKAL220_tPageList *list);
+void                 nNIKAL220_tPageList_destroy(nNIKAL220_tPageList *list);
+nNIKAL100_tI32 nNIKAL1_getDeviceNUMANode(const nNIKAL100_tDeviceInfo* deviceInfo);
 
-nNIKAL100_cc void *nNIKAL220_tPageList_mapToKernel    (nNIKAL220_tPageList *list, size_t offsetInPages, size_t sizeInPages);
-nNIKAL100_cc void  nNIKAL220_tPageList_unmapFromKernel(nNIKAL220_tPageList *list, void *pointer);
-nNIKAL100_cc void *nNIKAL220_tPageList_mapOnePageToKernel(nNIKAL220_tPageList *list, size_t pageIndex);
-nNIKAL100_cc void  nNIKAL220_tPageList_unmapOnePageFromKernel(nNIKAL220_tPageList *list, size_t pageIndex);
+void *nNIKAL220_tPageList_mapToKernel    (nNIKAL220_tPageList *list, size_t offsetInPages, size_t sizeInPages);
+void  nNIKAL220_tPageList_unmapFromKernel(nNIKAL220_tPageList *list, void *pointer);
+void *nNIKAL220_tPageList_mapOnePageToKernel(nNIKAL220_tPageList *list, size_t pageIndex);
+void  nNIKAL220_tPageList_unmapOnePageFromKernel(nNIKAL220_tPageList *list, size_t pageIndex);
 
-nNIKAL100_cc void   nNIKAL220_tPageList_getPhysicalAddress(const nNIKAL220_tPageList *list,
+void   nNIKAL220_tPageList_getPhysicalAddress(const nNIKAL220_tPageList *list,
                                                            size_t offset,
                                                            nNIKAL100_tU64 *address,
                                                            size_t *size);
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL220_tUserMemMap_mapPageList(nNIKAL220_tUserMemMap *vma,
+nNIKAL100_tStatus nNIKAL220_tUserMemMap_mapPageList(nNIKAL220_tUserMemMap *vma,
                                                           nNIKAL220_tPageList *list,
                                                           size_t offsetInPages,
                                                           size_t sizeInPages);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL220_tUserMemMap_mapPhysicalAddress(nNIKAL220_tUserMemMap *vma,
+nNIKAL100_tStatus nNIKAL220_tUserMemMap_mapPhysicalAddress(nNIKAL220_tUserMemMap *vma,
                                                                  nNIKAL100_tU64 address,
                                                                  size_t size);
 
 #define nNIKAL230_kPhysMemFlagDefault       0UL
 #define nNIKAL230_kPhysMemFlagWriteCombined (1UL << 0)
 #define nNIKAL1750_kPhysMemFlagCache        (1UL << 1)
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL230_tUserMemMap_mapPhysicalAddress(nNIKAL220_tUserMemMap *vma,
+nNIKAL100_tStatus nNIKAL230_tUserMemMap_mapPhysicalAddress(nNIKAL220_tUserMemMap *vma,
                                                                  nNIKAL100_tU64 address,
                                                                  size_t size,
                                                                  unsigned long flags);
-nNIKAL100_cc void __iomem * nNIKAL230_mapPhysicalToKernel (nNIKAL100_tU64 physicalAddress,
+void __iomem * nNIKAL230_mapPhysicalToKernel (nNIKAL100_tU64 physicalAddress,
                                                            size_t size,
                                                            unsigned long flags);
-nNIKAL100_cc void nNIKAL230_unmapPhysicalFromKernel (void __iomem * memoryArea, unsigned long flags);
+void nNIKAL230_unmapPhysicalFromKernel (void __iomem * memoryArea, unsigned long flags);
 
-nNIKAL100_cc void*    nNIKAL220_tUserMemMap_getVirtualAddress(nNIKAL220_tUserMemMap *vma);
-nNIKAL100_cc size_t   nNIKAL220_tUserMemMap_getSize(nNIKAL220_tUserMemMap *vma);
+void*    nNIKAL220_tUserMemMap_getVirtualAddress(nNIKAL220_tUserMemMap *vma);
+size_t   nNIKAL220_tUserMemMap_getSize(nNIKAL220_tUserMemMap *vma);
 
 #define nNIKAL220_kUserMemMapAccessModeRead  (1UL<<0)
 #define nNIKAL220_kUserMemMapAccessModeWrite (1UL<<1)
 #define nNIKAL220_kUserMemMapAccessModeExec  (1UL<<2)
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL220_tUserMemMap_getAccessMode(nNIKAL220_tUserMemMap *vma);
+nNIKAL100_tU32 nNIKAL220_tUserMemMap_getAccessMode(nNIKAL220_tUserMemMap *vma);
 
 /* NI-KAL DMA abstraction */
 
@@ -933,48 +933,48 @@ typedef enum
 
 typedef struct nNIKAL220_tSGL nNIKAL220_tSGL;
 
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL220_pciSetDMAMask(void *osDevice, nNIKAL100_tU64 mask);
-nNIKAL100_cc nNIKAL220_tSGL *nNIKAL220_tSGL_createForPCI(void *osDevice, size_t maxPages);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL220_tSGL_map(nNIKAL220_tSGL *sgl, nNIKAL220_tPageList *pageList, size_t offsetInBytes, size_t sizeInBytes, nNIKAL220_tDMADirection dir);
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL220_tSGL_numSegments(nNIKAL220_tSGL *sgl);
-nNIKAL100_cc void nNIKAL220_tSGL_iterate(nNIKAL220_tSGL *sgl);
-nNIKAL100_cc void nNIKAL220_tSGL_nextSegment(nNIKAL220_tSGL *sgl);
-nNIKAL100_cc nNIKAL100_tU64 nNIKAL220_tSGL_getSegmentAddress(nNIKAL220_tSGL *sgl);
-nNIKAL100_cc size_t nNIKAL220_tSGL_getSegmentSize(nNIKAL220_tSGL *sgl);
-nNIKAL100_cc void nNIKAL220_tSGL_prepareForDMA(nNIKAL220_tSGL *sgl);
-nNIKAL100_cc void nNIKAL220_tSGL_completeDMA(nNIKAL220_tSGL *sgl);
-nNIKAL100_cc void nNIKAL220_tSGL_unmap(nNIKAL220_tSGL *sgl);
-nNIKAL100_cc void nNIKAL220_tSGL_destroy(nNIKAL220_tSGL *sgl);
+nNIKAL100_tStatus nNIKAL220_pciSetDMAMask(void *osDevice, nNIKAL100_tU64 mask);
+nNIKAL220_tSGL *nNIKAL220_tSGL_createForPCI(void *osDevice, size_t maxPages);
+nNIKAL100_tStatus nNIKAL220_tSGL_map(nNIKAL220_tSGL *sgl, nNIKAL220_tPageList *pageList, size_t offsetInBytes, size_t sizeInBytes, nNIKAL220_tDMADirection dir);
+nNIKAL100_tU32 nNIKAL220_tSGL_numSegments(nNIKAL220_tSGL *sgl);
+void nNIKAL220_tSGL_iterate(nNIKAL220_tSGL *sgl);
+void nNIKAL220_tSGL_nextSegment(nNIKAL220_tSGL *sgl);
+nNIKAL100_tU64 nNIKAL220_tSGL_getSegmentAddress(nNIKAL220_tSGL *sgl);
+size_t nNIKAL220_tSGL_getSegmentSize(nNIKAL220_tSGL *sgl);
+void nNIKAL220_tSGL_prepareForDMA(nNIKAL220_tSGL *sgl);
+void nNIKAL220_tSGL_completeDMA(nNIKAL220_tSGL *sgl);
+void nNIKAL220_tSGL_unmap(nNIKAL220_tSGL *sgl);
+void nNIKAL220_tSGL_destroy(nNIKAL220_tSGL *sgl);
 
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL230_getCurrentEffectiveUserID(void);
+nNIKAL100_tU32 nNIKAL230_getCurrentEffectiveUserID(void);
 
-nNIKAL100_cc void* nNIKAL250_createKernelSocketBuffer(size_t sizeInBytes);
-nNIKAL100_cc void nNIKAL250_releaseKernelSocketBuffer(void *socketBuffer);
-nNIKAL100_cc nNIKAL100_tStatus nNIKAL250_kernelSocketSend(void *socketBuffer,
+void* nNIKAL250_createKernelSocketBuffer(size_t sizeInBytes);
+void nNIKAL250_releaseKernelSocketBuffer(void *socketBuffer);
+nNIKAL100_tStatus nNIKAL250_kernelSocketSend(void *socketBuffer,
                                                           nNIKAL100_tU32 pid,
                                                           nNIKAL100_tU16 attribute,
                                                           const void *message,
                                                           size_t sizeInBytes);
 
 /* NI-KAL Serial Core functionality */
-nNIKAL100_cc void *nNIKAL100_registerSerialCoreDriver(nNIKAL100_tSerialCoreDriverData *driverData);
-nNIKAL100_cc void nNIKAL100_unregisterSerialCoreDriver(void *driver);
-nNIKAL100_cc void *nNIKAL100_addOneSerialPort(void *driver, nNIKAL100_tSerialCorePortData *portData, nNIKAL100_tSerialCoreTxBuffer *txBuffer);
-nNIKAL100_cc void nNIKAL100_removeOneSerialPort(void *driver, void *port);
-nNIKAL100_cc void nNIKAL100_insertCharToSerialRxBuffer(void *port, char ch, nNIKAL100_tSerialCoreError errorFlag, bool ignore);
-nNIKAL100_cc void nNIKAL100_pushSerialRxBufferToUser(void *port);
-nNIKAL100_cc void nNIKAL100_serialCoreTxWakeup(void *port);
-nNIKAL100_cc void nNIKAL100_serialCoreHandleModemChange(void *port, unsigned int msr);
-nNIKAL100_cc nNIKAL100_tU32 nNIKAL100_serialCoreLockPort(void *port);
-nNIKAL100_cc void nNIKAL100_serialCoreUnlockPort(void *port, nNIKAL100_tU32 flags);
-nNIKAL100_cc nNIKAL100_tBoolean nNIKAL1500_serialCoreIsPortLockedOnWiremodeConfig(void);
+void *nNIKAL100_registerSerialCoreDriver(nNIKAL100_tSerialCoreDriverData *driverData);
+void nNIKAL100_unregisterSerialCoreDriver(void *driver);
+void *nNIKAL100_addOneSerialPort(void *driver, nNIKAL100_tSerialCorePortData *portData, nNIKAL100_tSerialCoreTxBuffer *txBuffer);
+void nNIKAL100_removeOneSerialPort(void *driver, void *port);
+void nNIKAL100_insertCharToSerialRxBuffer(void *port, char ch, nNIKAL100_tSerialCoreError errorFlag, bool ignore);
+void nNIKAL100_pushSerialRxBufferToUser(void *port);
+void nNIKAL100_serialCoreTxWakeup(void *port);
+void nNIKAL100_serialCoreHandleModemChange(void *port, unsigned int msr);
+nNIKAL100_tU32 nNIKAL100_serialCoreLockPort(void *port);
+void nNIKAL100_serialCoreUnlockPort(void *port, nNIKAL100_tU32 flags);
+nNIKAL100_tBoolean nNIKAL1500_serialCoreIsPortLockedOnWiremodeConfig(void);
 
-nNIKAL100_cc void nNIKAL250_halt(const char *component, const char *file, int line, const char *message);
-nNIKAL100_cc void *nNIKAL1500_registerSysctlInt_debugKALOnly(const char *rootName, const char *sysctlName, int *sysctlVal, unsigned short accessMode);
-nNIKAL100_cc void nNIKAL1500_unregisterSysctl_debugKALOnly(void *sysctlObj);
+void nNIKAL250_halt(const char *component, const char *file, int line, const char *message);
+void *nNIKAL1500_registerSysctlInt_debugKALOnly(const char *rootName, const char *sysctlName, int *sysctlVal, unsigned short accessMode);
+void nNIKAL1500_unregisterSysctl_debugKALOnly(void *sysctlObj);
 
-nNIKAL100_cc nNIKAL1_tFirmwareBuffer *nNIKAL1_loadFirmwareBuffer(const void *device, const nNIKAL100_tText *filename);
-nNIKAL100_cc void nNIKAL1_freeFirmwareBuffer(nNIKAL1_tFirmwareBuffer *firmware);
+nNIKAL1_tFirmwareBuffer *nNIKAL1_loadFirmwareBuffer(const void *device, const nNIKAL100_tText *filename);
+void nNIKAL1_freeFirmwareBuffer(nNIKAL1_tFirmwareBuffer *firmware);
 
 #ifdef __cplusplus
 }
